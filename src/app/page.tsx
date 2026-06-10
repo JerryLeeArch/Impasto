@@ -5,10 +5,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Image,
   Loader2,
+  Moon,
   Music,
   Pencil,
   Plus,
   Search,
+  Sun,
   Trash2,
   X,
 } from "lucide-react";
@@ -106,6 +108,8 @@ export default function Home() {
   const [composerMode, setComposerMode] = useState<ComposerMode>("create");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isThemeReady, setIsThemeReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pendingScrollRef = useRef<number | null>(null);
 
@@ -178,6 +182,7 @@ export default function Home() {
     error ?? (isError ? "Could not load logs." : null);
   const showInitialLoading = isPending && logs.length === 0;
   const showEmptyState = !isPending && !isError && logs.length === 0;
+  const themeLabel = isDarkMode ? "Switch to light mode" : "Switch to dark mode";
 
   function openCreateComposer() {
     setForm(emptyForm);
@@ -278,6 +283,32 @@ export default function Home() {
     }
   }, [isPending, logs]);
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const storedTheme = window.localStorage.getItem("impasto-theme");
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+
+      setIsDarkMode(storedTheme === "dark" || (!storedTheme && prefersDark));
+      setIsThemeReady(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!isThemeReady) {
+      return;
+    }
+
+    const theme = isDarkMode ? "dark" : "light";
+
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem("impasto-theme", theme);
+  }, [isDarkMode, isThemeReady]);
+
   function searchByArtist(artist: string) {
     setSelectedItem(null);
     setCategory("all");
@@ -354,15 +385,18 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#1d1d1f]">
+    <main
+      data-theme={isDarkMode ? "dark" : "light"}
+      className="app-shell min-h-screen bg-white text-[#1d1d1f]"
+    >
       <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-[104px] sm:px-8">
-        <header className="fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[19px] backdrop-blur-2xl">
+        <header className="app-header fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[19px] backdrop-blur-2xl">
           <div className="mx-auto grid w-full max-w-[860px] grid-cols-[104px_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_36px] sm:gap-x-5 sm:px-8">
             <div className="row-span-2 min-w-0 self-start">
-              <h1 className="text-[24px] font-semibold leading-none tracking-normal text-[#1d1d1f] sm:text-[28px]">
+              <h1 className="app-title text-[24px] font-semibold leading-none tracking-normal text-[#1d1d1f] sm:text-[28px]">
                 Impasto
               </h1>
-              <p className="mt-1 text-[10px] font-medium leading-3 text-[#6e6e73] sm:text-[12px] sm:leading-4">
+              <p className="app-subtitle mt-1 text-[10px] font-medium leading-3 text-[#6e6e73] sm:text-[12px] sm:leading-4">
                 Your take, over time.
               </p>
             </div>
@@ -370,7 +404,7 @@ export default function Home() {
             <div className="relative col-start-2 row-start-1">
               <Search
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#86868b]"
+                className="app-search-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#86868b]"
                 size={15}
                 strokeWidth={1.7}
               />
@@ -378,13 +412,13 @@ export default function Home() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search titles, notes, or artists"
-                className="h-9 w-full rounded-full border border-transparent bg-white pl-9 pr-9 text-[13px] font-normal text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.075)] outline-none transition placeholder:text-[#86868b] focus:shadow-[0_10px_30px_rgba(0,0,0,0.16)] sm:text-[14px]"
+                className="app-search-input h-9 w-full rounded-full border border-transparent bg-white pl-9 pr-9 text-[13px] font-normal text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.075)] outline-none transition placeholder:text-[#86868b] focus:shadow-[0_10px_30px_rgba(0,0,0,0.16)] sm:text-[14px]"
               />
               {search ? (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86868b] transition hover:text-[#1d1d1f]"
+                  className="app-clear-button absolute right-3 top-1/2 -translate-y-1/2 text-[#86868b] transition hover:text-[#1d1d1f]"
                   aria-label="Clear search"
                 >
                   <X size={14} strokeWidth={1.8} />
@@ -395,10 +429,29 @@ export default function Home() {
             <button
               type="button"
               onClick={openCreateComposer}
-              className="col-start-3 row-start-1 inline-flex h-9 w-9 items-center justify-center self-center justify-self-end rounded-full border border-transparent bg-white text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition hover:shadow-[0_10px_30px_rgba(0,0,0,0.21)]"
+              className="app-top-add-button col-start-3 row-start-1 inline-flex h-9 w-9 items-center justify-center self-center justify-self-end rounded-full border border-transparent bg-white text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition hover:shadow-[0_10px_30px_rgba(0,0,0,0.21)]"
               aria-label="New log"
             >
               <Plus size={18} strokeWidth={2} />
+            </button>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isDarkMode}
+              aria-label={themeLabel}
+              title={themeLabel}
+              data-state={isDarkMode ? "dark" : "light"}
+              onClick={() => setIsDarkMode((current) => !current)}
+              className="app-theme-toggle col-start-3 row-start-2 justify-self-end self-center"
+            >
+              <span className="app-theme-toggle-thumb">
+                {isDarkMode ? (
+                  <Moon size={10} strokeWidth={2} />
+                ) : (
+                  <Sun size={10} strokeWidth={2} />
+                )}
+              </span>
             </button>
 
             <div className="col-start-2 flex gap-4 overflow-x-auto pb-0.5">
@@ -410,7 +463,8 @@ export default function Home() {
                     key={option.value}
                     type="button"
                     onClick={() => setCategory(option.value)}
-                    className={`h-7 shrink-0 text-[12px] text-[#1d1d1f] transition ${
+                    data-active={selected ? "true" : "false"}
+                    className={`app-tab h-7 shrink-0 text-[12px] text-[#1d1d1f] transition ${
                       selected
                         ? "font-semibold underline underline-offset-4"
                         : "font-medium opacity-50 hover:opacity-100"
@@ -426,15 +480,15 @@ export default function Home() {
 
         <section className="flex flex-1 flex-col gap-3 pt-4">
           {selectedItem ? (
-            <div className="flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-4 py-3">
+            <div className="app-selected-item flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-4 py-3">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+                <span className="app-card-title break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
                   {selectedItem.title}
                 </span>
                 {selectedItem.artists.map((artist) => (
                   <span
                     key={artist}
-                    className="break-words text-[15px] font-medium leading-tight text-[#6e6e73]"
+                    className="app-muted break-words text-[15px] font-medium leading-tight text-[#6e6e73]"
                   >
                     {artist}
                   </span>
@@ -443,7 +497,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={closeItemLayers}
-                className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#6e6e73] shadow-[0_4px_14px_rgba(0,0,0,0.08)] transition hover:text-[#1d1d1f]"
+                className="app-secondary-button shrink-0 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#6e6e73] shadow-[0_4px_14px_rgba(0,0,0,0.08)] transition hover:text-[#1d1d1f]"
               >
                 Back to feed
               </button>
@@ -451,26 +505,26 @@ export default function Home() {
           ) : null}
 
           {errorMessage ? (
-            <div className="rounded-lg border border-[#c1663f]/20 bg-[#fff7f3] px-4 py-3 text-sm font-medium text-[#9b4f31]">
+            <div className="app-error rounded-lg border border-[#c1663f]/20 bg-[#fff7f3] px-4 py-3 text-sm font-medium text-[#9b4f31]">
               {errorMessage}
             </div>
           ) : null}
 
           {showInitialLoading ? (
-            <div className="flex h-44 items-center justify-center text-[#86868b]">
+            <div className="app-muted flex h-44 items-center justify-center text-[#86868b]">
               <Loader2 className="animate-spin" size={22} strokeWidth={1.7} />
             </div>
           ) : null}
 
           {showEmptyState ? (
-            <div className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-[#d2d2d7] bg-white px-6 text-center">
-              <p className="text-[19px] font-semibold text-[#1d1d1f]">
+            <div className="app-empty flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-[#d2d2d7] bg-white px-6 text-center">
+              <p className="app-title text-[19px] font-semibold text-[#1d1d1f]">
                 No logs yet.
               </p>
               <button
                 type="button"
                 onClick={openCreateComposer}
-                className="mt-5 inline-flex h-10 items-center gap-2 rounded-full border border-transparent bg-[#1d1d1f] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
+                className="app-primary-button mt-5 inline-flex h-10 items-center gap-2 rounded-full border border-transparent bg-[#1d1d1f] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
               >
                 <Plus size={16} strokeWidth={2} />
                 New log
@@ -481,7 +535,7 @@ export default function Home() {
           {logs.map((log) => (
             <article
               key={log.id}
-              className="rounded-lg bg-white px-5 pb-2 pt-5 sm:shadow-[0_10px_34px_rgba(0,0,0,0.05)]"
+              className="app-card rounded-lg bg-white px-5 pb-2 pt-5 sm:shadow-[0_10px_34px_rgba(0,0,0,0.05)]"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -490,7 +544,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => openItemLayers(log)}
-                        className="break-words text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]"
+                        className="app-card-title break-words text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]"
                         aria-label={`Show layers for ${log.title}`}
                       >
                         {log.title}
@@ -500,7 +554,7 @@ export default function Home() {
                           key={artist}
                           type="button"
                           onClick={() => searchByArtist(artist)}
-                          className="break-words text-left text-[15px] font-medium leading-tight text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
+                          className="app-muted-link break-words text-left text-[15px] font-medium leading-tight text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
                           aria-label={`Search logs by ${artist}`}
                         >
                           {artist}
@@ -521,7 +575,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => openLayerComposer(log)}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
+                    className="app-card-action inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
                     aria-label={`Add layer for ${log.title}`}
                   >
                     <Plus size={13} strokeWidth={1.8} />
@@ -530,7 +584,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => openEditComposer(log)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                    className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
                     aria-label={`Edit ${log.title}`}
                   >
                     <Pencil size={15} strokeWidth={1.7} />
@@ -538,7 +592,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => void handleDelete(log.id)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36]"
+                    className="app-delete-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36]"
                     aria-label={`Delete ${log.title}`}
                   >
                     <Trash2 size={15} strokeWidth={1.7} />
@@ -546,11 +600,11 @@ export default function Home() {
                 </div>
               </div>
 
-              <p className="mt-4 whitespace-pre-wrap break-words text-[14px] leading-6 text-[#424245]">
+              <p className="app-body mt-4 whitespace-pre-wrap break-words text-[14px] leading-5 text-[#424245]">
                 {log.body}
               </p>
 
-              <footer className="mt-5 flex items-center justify-between border-t border-[#d2d2d7]/55 pt-2 text-[12px] font-medium text-[#86868b]">
+              <footer className="app-footer mt-5 flex items-center justify-between border-t border-[#d2d2d7]/55 pt-2 text-[12px] font-medium text-[#86868b]">
                 <span>{formatDate(log.createdAt)}</span>
                 {log.updatedAt !== log.createdAt ? (
                   <span>Edited {formatDate(log.updatedAt)}</span>
@@ -562,13 +616,13 @@ export default function Home() {
       </div>
 
       {isComposerOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1d1d1f]/24 px-3 py-3 backdrop-blur-sm">
+        <div className="app-overlay fixed inset-0 z-40 flex items-center justify-center bg-[#1d1d1f]/24 px-3 py-3 backdrop-blur-sm">
           <form
             onSubmit={(event) => void handleSubmit(event)}
-            className="w-full max-w-xl rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6"
+            className="app-composer w-full max-w-2xl rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6"
           >
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-[24px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+              <h2 className="app-title text-[24px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
                 {composerMode === "edit"
                   ? "Edit log"
                   : composerMode === "layer"
@@ -578,7 +632,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setIsComposerOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
                 aria-label="Close composer"
               >
                 <X size={17} strokeWidth={1.7} />
@@ -589,7 +643,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="category"
-                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Category
                 </label>
@@ -607,7 +661,8 @@ export default function Home() {
                             category: option.value,
                           }))
                         }
-                        className={`h-9 rounded-full border text-[13px] font-semibold transition ${
+                        data-active={selected ? "true" : "false"}
+                        className={`app-choice h-9 rounded-full border text-[13px] font-semibold transition ${
                           selected
                             ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
                             : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
@@ -623,7 +678,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="title"
-                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Title
                 </label>
@@ -638,7 +693,7 @@ export default function Home() {
                   }
                   maxLength={160}
                   required
-                  className="h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
                   placeholder="Song, album, image, or idea"
                 />
               </div>
@@ -653,7 +708,7 @@ export default function Home() {
               >
                 <label
                   htmlFor="artists"
-                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Artists
                 </label>
@@ -668,7 +723,7 @@ export default function Home() {
                   }
                   disabled={form.category !== "music"}
                   tabIndex={form.category === "music" ? undefined : -1}
-                  className="h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35 disabled:opacity-100"
+                  className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35 disabled:opacity-100"
                   placeholder="Frank Ocean, James Blake"
                 />
               </div>
@@ -676,7 +731,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="rating"
-                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Rating
                 </label>
@@ -694,7 +749,8 @@ export default function Home() {
                             rating: option.value,
                           }))
                         }
-                        className={`h-9 rounded-full border text-[13px] font-semibold transition ${
+                        data-active={selected ? "true" : "false"}
+                        className={`app-choice h-9 rounded-full border text-[13px] font-semibold transition ${
                           selected
                             ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
                             : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
@@ -710,7 +766,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="notes"
-                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Notes
                 </label>
@@ -726,7 +782,7 @@ export default function Home() {
                   maxLength={5000}
                   required
                   rows={7}
-                  className="w-full resize-none rounded-lg border border-[#d2d2d7] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  className="app-field w-full resize-none rounded-lg border border-[#d2d2d7] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
                   placeholder="What did you like or dislike?"
                 />
               </div>
@@ -734,7 +790,7 @@ export default function Home() {
 
             <div className="mt-5 flex items-center justify-between gap-3">
               <span
-                className="inline-flex h-7 items-center gap-2 rounded-full bg-[#f5f5f7] px-3 text-[12px] font-semibold text-[#424245]"
+                className="app-status-pill inline-flex h-7 items-center gap-2 rounded-full bg-[#f5f5f7] px-3 text-[12px] font-semibold text-[#424245]"
               >
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${
@@ -746,7 +802,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-full bg-[#1d1d1f] px-5 text-[14px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-primary-button inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-full bg-[#1d1d1f] px-5 text-[14px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? (
                   <Loader2
@@ -772,7 +828,7 @@ function CategoryBadge({ category }: { category: Category }) {
     category === "music" ? Music : category === "image" ? Image : Search;
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
+    <span className="app-badge inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
       <Icon size={13} strokeWidth={1.7} />
       {label}
     </span>
@@ -783,7 +839,7 @@ function RatingBadge({ rating }: { rating: Rating }) {
   const option = ratingOptions.find((item) => item.value === rating);
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#424245]">
+    <span className="app-rating-badge inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#424245]">
       <span
         className={`h-1.5 w-1.5 rounded-full ${
           option?.dotClassName ?? "bg-[#86868b]"
