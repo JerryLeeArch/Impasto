@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Image,
   Loader2,
@@ -103,34 +98,43 @@ const dateFormatter = new Intl.DateTimeFormat("en", {
 });
 
 export default function Home() {
-  const [logs, setLogs] = useState<TasteLog[]>([]);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [composerMode, setComposerMode] = useState<ComposerMode>("create");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pendingScrollRef = useRef<number | null>(null);
 
-  const fetchLogs = useCallback(async () => {
-    setIsLoading(true);
+  const debouncedSearch = useDebouncedValue(search, 180);
+  const trimmedSearch = debouncedSearch.trim();
 
-    const params = new URLSearchParams();
-    const trimmedSearch = search.trim();
+  const {
+    data: logs = [],
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: selectedItem
+      ? ["logs", "item", selectedItem.id]
+      : ["logs", "feed", trimmedSearch, category],
+    queryFn: async () => {
+      const params = new URLSearchParams();
 
-    if (selectedItem) {
-      params.set("itemId", selectedItem.id);
-    } else if (trimmedSearch) {
-      params.set("search", trimmedSearch);
-    }
+      if (selectedItem) {
+        params.set("itemId", selectedItem.id);
+      } else {
+        if (trimmedSearch) {
+          params.set("search", trimmedSearch);
+        }
 
-    if (!selectedItem && category !== "all") {
-      params.set("category", category);
-    }
+        if (category !== "all") {
+          params.set("category", category);
+        }
+      }
 
-    try {
       const response = await fetch(`/api/logs?${params.toString()}`, {
         cache: "no-store",
       });
@@ -140,33 +144,40 @@ export default function Home() {
       }
 
       const data = (await response.json()) as { logs: TasteLog[] };
-      setLogs(data.logs);
-      setError(null);
-    } catch (fetchError) {
-      setError(
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Could not load logs.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [category, search, selectedItem]);
+      return data.logs;
+    },
+    placeholderData: () => {
+      if (!selectedItem) {
+        return undefined;
+      }
 
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      void fetchLogs();
-    }, 180);
+      const cached = queryClient.getQueriesData<TasteLog[]>({
+        queryKey: ["logs"],
+      });
+      const seen = new Set<string>();
+      const matches: TasteLog[] = [];
 
-    return () => window.clearTimeout(handle);
-  }, [fetchLogs]);
+      for (const [, data] of cached) {
+        for (const log of data ?? []) {
+          if (log.itemId === selectedItem.id && !seen.has(log.id)) {
+            seen.add(log.id);
+            matches.push(log);
+          }
+        }
+      }
+
+      return matches.length > 0 ? matches : undefined;
+    },
+  });
 
   const activeRating = useMemo(
     () => ratingOptions.find((option) => option.value === form.rating),
     [form.rating],
   );
-  const showInitialLoading = isLoading && logs.length === 0;
-  const showEmptyState = !isLoading && logs.length === 0;
+  const errorMessage =
+    error ?? (isError ? "Could not load logs." : null);
+  const showInitialLoading = isPending && logs.length === 0;
+  const showEmptyState = !isPending && !isError && logs.length === 0;
 
   function openCreateComposer() {
     setForm(emptyForm);
@@ -201,18 +212,76 @@ export default function Home() {
   }
 
   function openItemLayers(log: TasteLog) {
-    setSelectedItem({
+    const item: SelectedItem = {
       id: log.itemId,
       title: log.title,
       category: log.category,
       artists: log.artists,
-    });
+    };
+
+    window.history.replaceState(
+      { view: "feed", search, category, scrollY: window.scrollY },
+      "",
+    );
+    window.history.pushState({ view: "layers", item }, "");
+    setSelectedItem(item);
     setSearch("");
     setCategory("all");
+    window.scrollTo(0, 0);
   }
 
   function closeItemLayers() {
+    window.history.back();
+  }
+
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+
+    function handlePopState(event: PopStateEvent) {
+      const state = event.state as
+        | {
+            view?: string;
+            search?: string;
+            category?: CategoryFilter;
+            scrollY?: number;
+            item?: SelectedItem;
+          }
+        | null;
+
+      if (state?.view === "layers" && state.item) {
+        setSelectedItem(state.item);
+        setSearch("");
+        setCategory("all");
+        window.scrollTo(0, 0);
+        return;
+      }
+
+      setSelectedItem(null);
+
+      if (state?.view === "feed") {
+        setSearch(state.search ?? "");
+        setCategory(state.category ?? "all");
+        pendingScrollRef.current = state.scrollY ?? 0;
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!isPending && pendingScrollRef.current !== null) {
+      window.scrollTo(0, pendingScrollRef.current);
+      pendingScrollRef.current = null;
+    }
+  }, [isPending, logs]);
+
+  function searchByArtist(artist: string) {
     setSelectedItem(null);
+    setCategory("all");
+    setSearch(artist);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -248,7 +317,7 @@ export default function Home() {
 
       setIsComposerOpen(false);
       setForm(emptyForm);
-      await fetchLogs();
+      await queryClient.invalidateQueries({ queryKey: ["logs"] });
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : "Could not save the log.",
@@ -274,7 +343,7 @@ export default function Home() {
         throw new Error("Could not delete the log.");
       }
 
-      await fetchLogs();
+      await queryClient.invalidateQueries({ queryKey: ["logs"] });
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
@@ -286,9 +355,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white text-[#1d1d1f]">
-      <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-3 sm:px-8 sm:pt-4">
-        <header className="sticky top-0 z-20 -mx-5 border-b border-[#d2d2d7]/30 bg-white/90 px-5 py-2.5 backdrop-blur-2xl sm:-mx-8 sm:px-8">
-          <div className="grid grid-cols-[104px_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-2 sm:grid-cols-[128px_minmax(280px,1fr)_36px] sm:gap-x-5">
+      <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-[104px] sm:px-8">
+        <header className="fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[19px] backdrop-blur-2xl">
+          <div className="mx-auto grid w-full max-w-[860px] grid-cols-[104px_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_36px] sm:gap-x-5 sm:px-8">
             <div className="row-span-2 min-w-0 self-start">
               <h1 className="text-[24px] font-semibold leading-none tracking-normal text-[#1d1d1f] sm:text-[28px]">
                 Impasto
@@ -309,20 +378,30 @@ export default function Home() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search titles, notes, or artists"
-                className="h-9 w-full rounded-full border border-transparent bg-white pl-9 pr-4 text-[13px] font-normal text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.075)] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b]/45 focus:shadow-[0_10px_30px_rgba(0,0,0,0.11)] focus:ring-4 focus:ring-[#d2d2d7]/35 sm:text-[14px]"
+                className="h-9 w-full rounded-full border border-transparent bg-white pl-9 pr-9 text-[13px] font-normal text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.075)] outline-none transition placeholder:text-[#86868b] focus:shadow-[0_10px_30px_rgba(0,0,0,0.16)] sm:text-[14px]"
               />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86868b] transition hover:text-[#1d1d1f]"
+                  aria-label="Clear search"
+                >
+                  <X size={14} strokeWidth={1.8} />
+                </button>
+              ) : null}
             </div>
 
             <button
               type="button"
               onClick={openCreateComposer}
-              className="col-start-3 row-start-1 inline-flex h-9 w-9 items-center justify-center self-center justify-self-end rounded-full border border-transparent bg-white text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition hover:shadow-[0_10px_30px_rgba(0,0,0,0.16)]"
+              className="col-start-3 row-start-1 inline-flex h-9 w-9 items-center justify-center self-center justify-self-end rounded-full border border-transparent bg-white text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition hover:shadow-[0_10px_30px_rgba(0,0,0,0.21)]"
               aria-label="New log"
             >
               <Plus size={18} strokeWidth={2} />
             </button>
 
-            <div className="col-start-2 flex gap-1.5 overflow-x-auto pb-0.5">
+            <div className="col-start-2 flex gap-4 overflow-x-auto pb-0.5">
               {categoryOptions.map((option) => {
                 const selected = category === option.value;
 
@@ -331,10 +410,10 @@ export default function Home() {
                     key={option.value}
                     type="button"
                     onClick={() => setCategory(option.value)}
-                    className={`h-7 shrink-0 rounded-full border px-3 text-[12px] font-semibold transition ${
+                    className={`h-7 shrink-0 text-[12px] text-[#1d1d1f] transition ${
                       selected
-                        ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
-                        : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f]"
+                        ? "font-semibold underline underline-offset-4"
+                        : "font-medium opacity-50 hover:opacity-100"
                     }`}
                   >
                     {option.label}
@@ -348,22 +427,18 @@ export default function Home() {
         <section className="flex flex-1 flex-col gap-3 pt-4">
           {selectedItem ? (
             <div className="flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-[17px] font-semibold leading-tight text-[#1d1d1f]">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
                   {selectedItem.title}
-                </p>
-                {selectedItem.artists.length > 0 ? (
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {selectedItem.artists.map((artist) => (
-                      <span
-                        key={artist}
-                        className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#6e6e73] shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                      >
-                        {artist}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
+                </span>
+                {selectedItem.artists.map((artist) => (
+                  <span
+                    key={artist}
+                    className="break-words text-[15px] font-medium leading-tight text-[#6e6e73]"
+                  >
+                    {artist}
+                  </span>
+                ))}
               </div>
               <button
                 type="button"
@@ -375,9 +450,9 @@ export default function Home() {
             </div>
           ) : null}
 
-          {error ? (
+          {errorMessage ? (
             <div className="rounded-lg border border-[#c1663f]/20 bg-[#fff7f3] px-4 py-3 text-sm font-medium text-[#9b4f31]">
-              {error}
+              {errorMessage}
             </div>
           ) : null}
 
@@ -406,30 +481,47 @@ export default function Home() {
           {logs.map((log) => (
             <article
               key={log.id}
-              className="rounded-lg bg-white p-5 shadow-[0_10px_34px_rgba(0,0,0,0.055)]"
+              className="rounded-lg bg-white px-5 pb-2 pt-5 sm:shadow-[0_10px_34px_rgba(0,0,0,0.05)]"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {selectedItem ? null : (
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <button
+                        type="button"
+                        onClick={() => openItemLayers(log)}
+                        className="break-words text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]"
+                        aria-label={`Show layers for ${log.title}`}
+                      >
+                        {log.title}
+                      </button>
+                      {log.artists.map((artist) => (
+                        <button
+                          key={artist}
+                          type="button"
+                          onClick={() => searchByArtist(artist)}
+                          className="break-words text-left text-[15px] font-medium leading-tight text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
+                          aria-label={`Search logs by ${artist}`}
+                        >
+                          {artist}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div
+                    className={`flex flex-wrap items-center gap-3 ${
+                      selectedItem ? "" : "mt-2"
+                    }`}
+                  >
                     <CategoryBadge category={log.category} />
                     <RatingBadge rating={log.rating} />
                   </div>
-                  {selectedItem ? null : (
-                    <button
-                      type="button"
-                      onClick={() => openItemLayers(log)}
-                      className="block break-words text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:text-[#6e6e73]"
-                      aria-label={`Show layers for ${log.title}`}
-                    >
-                      {log.title}
-                    </button>
-                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
                     onClick={() => openLayerComposer(log)}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#f5f5f7] px-2.5 text-[12px] font-semibold text-[#6e6e73] transition hover:bg-white hover:text-[#1d1d1f] hover:shadow-[0_4px_14px_rgba(0,0,0,0.08)]"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
                     aria-label={`Add layer for ${log.title}`}
                   >
                     <Plus size={13} strokeWidth={1.8} />
@@ -454,24 +546,11 @@ export default function Home() {
                 </div>
               </div>
 
-              {!selectedItem && log.artists.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {log.artists.map((artist) => (
-                    <span
-                      key={artist}
-                      className="rounded-full bg-[#f5f5f7] px-2.5 py-1 text-[12px] font-semibold text-[#6e6e73]"
-                    >
-                      {artist}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-
               <p className="mt-4 whitespace-pre-wrap break-words text-[14px] leading-6 text-[#424245]">
                 {log.body}
               </p>
 
-              <footer className="mt-5 flex items-center justify-between border-t border-[#d2d2d7]/55 pt-3 text-[12px] font-medium text-[#86868b]">
+              <footer className="mt-5 flex items-center justify-between border-t border-[#d2d2d7]/55 pt-2 text-[12px] font-medium text-[#86868b]">
                 <span>{formatDate(log.createdAt)}</span>
                 {log.updatedAt !== log.createdAt ? (
                   <span>Edited {formatDate(log.updatedAt)}</span>
@@ -483,7 +562,7 @@ export default function Home() {
       </div>
 
       {isComposerOpen ? (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#1d1d1f]/24 px-3 py-3 backdrop-blur-sm sm:items-center">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1d1d1f]/24 px-3 py-3 backdrop-blur-sm">
           <form
             onSubmit={(event) => void handleSubmit(event)}
             className="w-full max-w-xl rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6"
@@ -693,7 +772,7 @@ function CategoryBadge({ category }: { category: Category }) {
     category === "music" ? Music : category === "image" ? Image : Search;
 
   return (
-    <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[#f5f5f7] px-2.5 text-[12px] font-semibold text-[#6e6e73]">
+    <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
       <Icon size={13} strokeWidth={1.7} />
       {label}
     </span>
@@ -704,7 +783,7 @@ function RatingBadge({ rating }: { rating: Rating }) {
   const option = ratingOptions.find((item) => item.value === rating);
 
   return (
-    <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[#f5f5f7] px-2.5 text-[12px] font-semibold text-[#424245]">
+    <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#424245]">
       <span
         className={`h-1.5 w-1.5 rounded-full ${
           option?.dotClassName ?? "bg-[#86868b]"
@@ -713,6 +792,17 @@ function RatingBadge({ rating }: { rating: Rating }) {
       {option?.label ?? rating}
     </span>
   );
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(handle);
+  }, [value, delayMs]);
+
+  return debounced;
 }
 
 function splitArtists(value: string) {
