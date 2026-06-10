@@ -49,6 +49,9 @@ type SelectedItem = {
   artists: string[];
 };
 
+const themeStorageKey = "impasto-theme";
+const themeCookieMaxAge = 60 * 60 * 24 * 365;
+
 const emptyForm: FormState = {
   id: null,
   category: "music",
@@ -285,12 +288,21 @@ export default function Home() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      const storedTheme = window.localStorage.getItem("impasto-theme");
+      const storedTheme = window.localStorage.getItem(themeStorageKey);
+      const documentTheme = document.documentElement.dataset.theme;
       const prefersDark = window.matchMedia(
         "(prefers-color-scheme: dark)",
       ).matches;
+      const theme =
+        storedTheme === "dark" || storedTheme === "light"
+          ? storedTheme
+          : documentTheme === "dark" || documentTheme === "light"
+            ? documentTheme
+            : prefersDark
+              ? "dark"
+              : "light";
 
-      setIsDarkMode(storedTheme === "dark" || (!storedTheme && prefersDark));
+      setIsDarkMode(theme === "dark");
       setIsThemeReady(true);
     });
 
@@ -306,7 +318,8 @@ export default function Home() {
 
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
-    window.localStorage.setItem("impasto-theme", theme);
+    window.localStorage.setItem(themeStorageKey, theme);
+    document.cookie = `${themeStorageKey}=${theme}; path=/; max-age=${themeCookieMaxAge}; SameSite=Lax`;
   }, [isDarkMode, isThemeReady]);
 
   function searchByArtist(artist: string) {
@@ -384,21 +397,41 @@ export default function Home() {
     }
   }
 
+  function goHome() {
+    setSelectedItem(null);
+    setSearch("");
+    setCategory("all");
+    setError(null);
+    window.history.replaceState(
+      { view: "feed", search: "", category: "all", scrollY: 0 },
+      "",
+      window.location.pathname,
+    );
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <main
       data-theme={isDarkMode ? "dark" : "light"}
       className="app-shell min-h-screen bg-white text-[#1d1d1f]"
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-[104px] sm:px-8">
-        <header className="app-header fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[19px] backdrop-blur-2xl">
+        <header className="app-header fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[24px] backdrop-blur-2xl">
           <div className="mx-auto grid w-full max-w-[860px] grid-cols-[104px_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_36px] sm:gap-x-5 sm:px-8">
             <div className="row-span-2 min-w-0 self-start">
-              <h1 className="app-title text-[24px] font-semibold leading-none tracking-normal text-[#1d1d1f] sm:text-[28px]">
-                Impasto
-              </h1>
-              <p className="app-subtitle mt-1 text-[10px] font-medium leading-3 text-[#6e6e73] sm:text-[12px] sm:leading-4">
-                Your take, over time.
-              </p>
+              <button
+                type="button"
+                onClick={goHome}
+                className="app-logo-button block min-w-0 text-left"
+                aria-label="Go to home"
+              >
+                <h1 className="app-title text-[24px] font-semibold leading-none tracking-normal text-[#1d1d1f] sm:text-[28px]">
+                  Impasto
+                </h1>
+                <p className="app-subtitle mt-1 text-[10px] font-medium leading-3 text-[#6e6e73] sm:text-[12px] sm:leading-4">
+                  Your take, over time.
+                </p>
+              </button>
             </div>
 
             <div className="relative col-start-2 row-start-1">
