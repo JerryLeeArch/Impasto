@@ -1,0 +1,739 @@
+"use client";
+
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Image,
+  Loader2,
+  Music,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+
+type Category = "music" | "image" | "other";
+type CategoryFilter = Category | "all";
+type Rating = "like" | "neutral" | "dislike";
+
+type TasteLog = {
+  id: string;
+  itemId: string;
+  category: Category;
+  title: string;
+  body: string;
+  rating: Rating;
+  artists: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type FormState = {
+  id: string | null;
+  category: Category;
+  title: string;
+  body: string;
+  rating: Rating;
+  artists: string;
+};
+
+type ComposerMode = "create" | "edit" | "layer";
+
+type SelectedItem = {
+  id: string;
+  title: string;
+  category: Category;
+  artists: string[];
+};
+
+const emptyForm: FormState = {
+  id: null,
+  category: "music",
+  title: "",
+  body: "",
+  rating: "like",
+  artists: "",
+};
+
+const categoryOptions: { value: CategoryFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "music", label: "Music" },
+  { value: "image", label: "Images" },
+  { value: "other", label: "Other" },
+];
+
+const composeCategoryOptions: { value: Category; label: string }[] = [
+  { value: "music", label: "Music" },
+  { value: "image", label: "Image" },
+  { value: "other", label: "Other" },
+];
+
+const ratingOptions: {
+  value: Rating;
+  label: string;
+  dotClassName: string;
+}[] = [
+  {
+    value: "like",
+    label: "Like",
+    dotClassName: "bg-[#9bd36a]",
+  },
+  {
+    value: "neutral",
+    label: "Neutral",
+    dotClassName: "bg-[#d6a84f]",
+  },
+  {
+    value: "dislike",
+    label: "Dislike",
+    dotClassName: "bg-[#ff453a]",
+  },
+];
+
+const dateFormatter = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+export default function Home() {
+  const [logs, setLogs] = useState<TasteLog[]>([]);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<CategoryFilter>("all");
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [composerMode, setComposerMode] = useState<ComposerMode>("create");
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLogs = useCallback(async () => {
+    setIsLoading(true);
+
+    const params = new URLSearchParams();
+    const trimmedSearch = search.trim();
+
+    if (selectedItem) {
+      params.set("itemId", selectedItem.id);
+    } else if (trimmedSearch) {
+      params.set("search", trimmedSearch);
+    }
+
+    if (!selectedItem && category !== "all") {
+      params.set("category", category);
+    }
+
+    try {
+      const response = await fetch(`/api/logs?${params.toString()}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load logs.");
+      }
+
+      const data = (await response.json()) as { logs: TasteLog[] };
+      setLogs(data.logs);
+      setError(null);
+    } catch (fetchError) {
+      setError(
+        fetchError instanceof Error
+          ? fetchError.message
+          : "Could not load logs.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [category, search, selectedItem]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void fetchLogs();
+    }, 180);
+
+    return () => window.clearTimeout(handle);
+  }, [fetchLogs]);
+
+  const activeRating = useMemo(
+    () => ratingOptions.find((option) => option.value === form.rating),
+    [form.rating],
+  );
+  const showInitialLoading = isLoading && logs.length === 0;
+  const showEmptyState = !isLoading && logs.length === 0;
+
+  function openCreateComposer() {
+    setForm(emptyForm);
+    setComposerMode("create");
+    setIsComposerOpen(true);
+  }
+
+  function openEditComposer(log: TasteLog) {
+    setForm({
+      id: log.id,
+      category: log.category,
+      title: log.title,
+      body: log.body,
+      rating: log.rating,
+      artists: log.artists.join(", "),
+    });
+    setComposerMode("edit");
+    setIsComposerOpen(true);
+  }
+
+  function openLayerComposer(log: TasteLog) {
+    setForm({
+      id: null,
+      category: log.category,
+      title: log.title,
+      body: "",
+      rating: log.rating,
+      artists: log.artists.join(", "),
+    });
+    setComposerMode("layer");
+    setIsComposerOpen(true);
+  }
+
+  function openItemLayers(log: TasteLog) {
+    setSelectedItem({
+      id: log.itemId,
+      title: log.title,
+      category: log.category,
+      artists: log.artists,
+    });
+    setSearch("");
+    setCategory("all");
+  }
+
+  function closeItemLayers() {
+    setSelectedItem(null);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    setError(null);
+
+    const payload = {
+      category: form.category,
+      title: form.title,
+      body: form.body,
+      rating: form.rating,
+      artists: splitArtists(form.artists),
+    };
+
+    try {
+      const response = await fetch(
+        form.id ? `/api/logs/${form.id}` : "/api/logs",
+        {
+          method: form.id ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not save the log.");
+      }
+
+      setIsComposerOpen(false);
+      setForm(emptyForm);
+      await fetchLogs();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Could not save the log.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    const confirmed = window.confirm("Move this log out of the feed?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/logs/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not delete the log.");
+      }
+
+      await fetchLogs();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Could not delete the log.",
+      );
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-white text-[#1d1d1f]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-3 sm:px-8 sm:pt-4">
+        <header className="sticky top-0 z-20 -mx-5 border-b border-[#d2d2d7]/30 bg-white/90 px-5 py-2.5 backdrop-blur-2xl sm:-mx-8 sm:px-8">
+          <div className="grid grid-cols-[104px_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-2 sm:grid-cols-[128px_minmax(280px,1fr)_36px] sm:gap-x-5">
+            <div className="row-span-2 min-w-0 self-start">
+              <h1 className="text-[24px] font-semibold leading-none tracking-normal text-[#1d1d1f] sm:text-[28px]">
+                Impasto
+              </h1>
+              <p className="mt-1 text-[10px] font-medium leading-3 text-[#6e6e73] sm:text-[12px] sm:leading-4">
+                Your take, over time.
+              </p>
+            </div>
+
+            <div className="relative col-start-2 row-start-1">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#86868b]"
+                size={15}
+                strokeWidth={1.7}
+              />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search titles, notes, or artists"
+                className="h-9 w-full rounded-full border border-transparent bg-white pl-9 pr-4 text-[13px] font-normal text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.075)] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b]/45 focus:shadow-[0_10px_30px_rgba(0,0,0,0.11)] focus:ring-4 focus:ring-[#d2d2d7]/35 sm:text-[14px]"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={openCreateComposer}
+              className="col-start-3 row-start-1 inline-flex h-9 w-9 items-center justify-center self-center justify-self-end rounded-full border border-transparent bg-white text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition hover:shadow-[0_10px_30px_rgba(0,0,0,0.16)]"
+              aria-label="New log"
+            >
+              <Plus size={18} strokeWidth={2} />
+            </button>
+
+            <div className="col-start-2 flex gap-1.5 overflow-x-auto pb-0.5">
+              {categoryOptions.map((option) => {
+                const selected = category === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setCategory(option.value)}
+                    className={`h-7 shrink-0 rounded-full border px-3 text-[12px] font-semibold transition ${
+                      selected
+                        ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
+                        : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f]"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </header>
+
+        <section className="flex flex-1 flex-col gap-3 pt-4">
+          {selectedItem ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-[17px] font-semibold leading-tight text-[#1d1d1f]">
+                  {selectedItem.title}
+                </p>
+                {selectedItem.artists.length > 0 ? (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {selectedItem.artists.map((artist) => (
+                      <span
+                        key={artist}
+                        className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#6e6e73] shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+                      >
+                        {artist}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={closeItemLayers}
+                className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#6e6e73] shadow-[0_4px_14px_rgba(0,0,0,0.08)] transition hover:text-[#1d1d1f]"
+              >
+                Back to feed
+              </button>
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="rounded-lg border border-[#c1663f]/20 bg-[#fff7f3] px-4 py-3 text-sm font-medium text-[#9b4f31]">
+              {error}
+            </div>
+          ) : null}
+
+          {showInitialLoading ? (
+            <div className="flex h-44 items-center justify-center text-[#86868b]">
+              <Loader2 className="animate-spin" size={22} strokeWidth={1.7} />
+            </div>
+          ) : null}
+
+          {showEmptyState ? (
+            <div className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-[#d2d2d7] bg-white px-6 text-center">
+              <p className="text-[19px] font-semibold text-[#1d1d1f]">
+                No logs yet.
+              </p>
+              <button
+                type="button"
+                onClick={openCreateComposer}
+                className="mt-5 inline-flex h-10 items-center gap-2 rounded-full border border-transparent bg-[#1d1d1f] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
+              >
+                <Plus size={16} strokeWidth={2} />
+                New log
+              </button>
+            </div>
+          ) : null}
+
+          {logs.map((log) => (
+            <article
+              key={log.id}
+              className="rounded-lg bg-white p-5 shadow-[0_10px_34px_rgba(0,0,0,0.055)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <CategoryBadge category={log.category} />
+                    <RatingBadge rating={log.rating} />
+                  </div>
+                  {selectedItem ? null : (
+                    <button
+                      type="button"
+                      onClick={() => openItemLayers(log)}
+                      className="block break-words text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:text-[#6e6e73]"
+                      aria-label={`Show layers for ${log.title}`}
+                    >
+                      {log.title}
+                    </button>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openLayerComposer(log)}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#f5f5f7] px-2.5 text-[12px] font-semibold text-[#6e6e73] transition hover:bg-white hover:text-[#1d1d1f] hover:shadow-[0_4px_14px_rgba(0,0,0,0.08)]"
+                    aria-label={`Add layer for ${log.title}`}
+                  >
+                    <Plus size={13} strokeWidth={1.8} />
+                    Impasto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEditComposer(log)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                    aria-label={`Edit ${log.title}`}
+                  >
+                    <Pencil size={15} strokeWidth={1.7} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(log.id)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36]"
+                    aria-label={`Delete ${log.title}`}
+                  >
+                    <Trash2 size={15} strokeWidth={1.7} />
+                  </button>
+                </div>
+              </div>
+
+              {!selectedItem && log.artists.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {log.artists.map((artist) => (
+                    <span
+                      key={artist}
+                      className="rounded-full bg-[#f5f5f7] px-2.5 py-1 text-[12px] font-semibold text-[#6e6e73]"
+                    >
+                      {artist}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              <p className="mt-4 whitespace-pre-wrap break-words text-[14px] leading-6 text-[#424245]">
+                {log.body}
+              </p>
+
+              <footer className="mt-5 flex items-center justify-between border-t border-[#d2d2d7]/55 pt-3 text-[12px] font-medium text-[#86868b]">
+                <span>{formatDate(log.createdAt)}</span>
+                {log.updatedAt !== log.createdAt ? (
+                  <span>Edited {formatDate(log.updatedAt)}</span>
+                ) : null}
+              </footer>
+            </article>
+          ))}
+        </section>
+      </div>
+
+      {isComposerOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#1d1d1f]/24 px-3 py-3 backdrop-blur-sm sm:items-center">
+          <form
+            onSubmit={(event) => void handleSubmit(event)}
+            className="w-full max-w-xl rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6"
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-[24px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+                {composerMode === "edit"
+                  ? "Edit log"
+                  : composerMode === "layer"
+                    ? "Impasto"
+                    : "New log"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsComposerOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                aria-label="Close composer"
+              >
+                <X size={17} strokeWidth={1.7} />
+              </button>
+            </div>
+
+            <div className="grid gap-3">
+              <div>
+                <label
+                  htmlFor="category"
+                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Category
+                </label>
+                <div className="grid grid-cols-3 gap-2" id="category">
+                  {composeCategoryOptions.map((option) => {
+                    const selected = form.category === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            category: option.value,
+                          }))
+                        }
+                        className={`h-9 rounded-full border text-[13px] font-semibold transition ${
+                          selected
+                            ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
+                            : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="title"
+                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Title
+                </label>
+                <input
+                  id="title"
+                  value={form.title}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      title: event.target.value,
+                    }))
+                  }
+                  maxLength={160}
+                  required
+                  className="h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  placeholder="Song, album, image, or idea"
+                />
+              </div>
+
+              <div
+                aria-hidden={form.category !== "music"}
+                className={
+                  form.category === "music"
+                    ? ""
+                    : "pointer-events-none invisible select-none"
+                }
+              >
+                <label
+                  htmlFor="artists"
+                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Artists
+                </label>
+                <input
+                  id="artists"
+                  value={form.artists}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      artists: event.target.value,
+                    }))
+                  }
+                  disabled={form.category !== "music"}
+                  tabIndex={form.category === "music" ? undefined : -1}
+                  className="h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35 disabled:opacity-100"
+                  placeholder="Frank Ocean, James Blake"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="rating"
+                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Rating
+                </label>
+                <div className="grid grid-cols-3 gap-2" id="rating">
+                  {ratingOptions.map((option) => {
+                    const selected = form.rating === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            rating: option.value,
+                          }))
+                        }
+                        className={`h-9 rounded-full border text-[13px] font-semibold transition ${
+                          selected
+                            ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
+                            : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="notes"
+                  className="mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Notes
+                </label>
+                <textarea
+                  id="notes"
+                  value={form.body}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      body: event.target.value,
+                    }))
+                  }
+                  maxLength={5000}
+                  required
+                  rows={7}
+                  className="w-full resize-none rounded-lg border border-[#d2d2d7] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  placeholder="What did you like or dislike?"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <span
+                className="inline-flex h-7 items-center gap-2 rounded-full bg-[#f5f5f7] px-3 text-[12px] font-semibold text-[#424245]"
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    activeRating?.dotClassName ?? "bg-[#86868b]"
+                  }`}
+                />
+                {activeRating?.label}
+              </span>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-full bg-[#1d1d1f] px-5 text-[14px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving ? (
+                  <Loader2
+                    className="animate-spin"
+                    size={16}
+                    strokeWidth={1.7}
+                  />
+                ) : null}
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
+function CategoryBadge({ category }: { category: Category }) {
+  const label =
+    category === "music" ? "Music" : category === "image" ? "Image" : "Other";
+  const Icon =
+    category === "music" ? Music : category === "image" ? Image : Search;
+
+  return (
+    <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[#f5f5f7] px-2.5 text-[12px] font-semibold text-[#6e6e73]">
+      <Icon size={13} strokeWidth={1.7} />
+      {label}
+    </span>
+  );
+}
+
+function RatingBadge({ rating }: { rating: Rating }) {
+  const option = ratingOptions.find((item) => item.value === rating);
+
+  return (
+    <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[#f5f5f7] px-2.5 text-[12px] font-semibold text-[#424245]">
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          option?.dotClassName ?? "bg-[#86868b]"
+        }`}
+      />
+      {option?.label ?? rating}
+    </span>
+  );
+}
+
+function splitArtists(value: string) {
+  const seen = new Set<string>();
+
+  return value
+    .split(",")
+    .map((artist) => artist.replace(/\s+/g, " ").trim())
+    .filter((artist) => {
+      const key = artist.toLowerCase();
+
+      if (!artist || seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 12);
+}
+
+function formatDate(value: string) {
+  return dateFormatter.format(new Date(value));
+}
