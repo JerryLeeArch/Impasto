@@ -81,6 +81,12 @@ button:disabled {
   --app-search-focus-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
   --app-control-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   --app-control-hover-shadow: 0 10px 30px rgba(0, 0, 0, 0.21);
+  --app-action-recessed-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.9);
+  --app-action-recessed-hover-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.18),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.92);
   --app-mini-shadow: 0 3px 10px rgba(0, 0, 0, 0.09);
   --app-card-shadow: 0 10px 34px rgba(0, 0, 0, 0.05);
   --app-modal-shadow: 0 30px 90px rgba(0, 0, 0, 0.18);
@@ -88,9 +94,12 @@ button:disabled {
   --app-error-bg: #fff7f3;
   --app-error-border: rgba(193, 102, 63, 0.2);
   --app-error-text: #9b4f31;
-  --app-toggle-bg: #f1f1f3;
-  --app-toggle-border: rgba(210, 210, 215, 0.65);
+  --app-toggle-bg: var(--app-bg);
+  --app-toggle-shadow: var(--app-mini-shadow);
   --app-toggle-thumb: #ffffff;
+  --app-toggle-thumb-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.16),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.92);
   --app-toggle-icon: #6e6e73;
   background: var(--app-bg);
   color: var(--app-text);
@@ -99,6 +108,7 @@ button:disabled {
     color 180ms ease;
 }
 
+:root[data-theme="dark"] .app-shell,
 .app-shell[data-theme="dark"] {
   --app-bg: #000000;
   --app-text: #f5f5f7;
@@ -108,9 +118,9 @@ button:disabled {
   --app-border: rgba(245, 245, 247, 0.13);
   --app-border-soft: rgba(245, 245, 247, 0.1);
   --app-card-bg: #000000;
-  --app-panel-bg: #202024;
-  --app-field-bg: #151518;
-  --app-control-bg: #202024;
+  --app-panel-bg: #000000;
+  --app-field-bg: #000000;
+  --app-control-bg: #000000;
   --app-hover-bg: #2a2a2f;
   --app-danger-bg: rgba(255, 116, 86, 0.12);
   --app-danger-text: #ffb199;
@@ -118,26 +128,74 @@ button:disabled {
   --app-primary-hover: #ffffff;
   --app-primary-text: #111113;
   --app-overlay: rgba(0, 0, 0, 0.48);
-  --app-search-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
-  --app-search-focus-shadow: 0 16px 36px rgba(0, 0, 0, 0.44);
-  --app-control-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-  --app-control-hover-shadow: 0 14px 36px rgba(0, 0, 0, 0.48);
-  --app-mini-shadow: 0 5px 16px rgba(0, 0, 0, 0.32);
-  --app-card-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
-  --app-modal-shadow: 0 34px 100px rgba(0, 0, 0, 0.62);
+  --app-search-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.52),
+    0 9px 22px -13px rgba(255, 255, 255, 0.52),
+    inset 0 -8px 18px -18px rgba(255, 255, 255, 0.24);
+  --app-search-focus-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.6),
+    0 11px 26px -12px rgba(255, 255, 255, 0.66),
+    inset 0 -9px 20px -18px rgba(255, 255, 255, 0.36);
+  --app-control-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.56),
+    0 8px 18px -13px rgba(255, 255, 255, 0.5),
+    inset 0 -8px 18px -18px rgba(255, 255, 255, 0.32);
+  --app-control-hover-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.66),
+    0 10px 24px -13px rgba(255, 255, 255, 0.62),
+    inset 0 -10px 22px -18px rgba(255, 255, 255, 0.42);
+  --app-mini-shadow:
+    0 5px 16px rgba(0, 0, 0, 0.5),
+    0 7px 16px -13px rgba(255, 255, 255, 0.44),
+    inset 0 -7px 16px -17px rgba(255, 255, 255, 0.28);
+  --app-card-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.54),
+    0 11px 28px -17px rgba(255, 255, 255, 0.46),
+    inset 0 -10px 22px -22px rgba(255, 255, 255, 0.22);
+  --app-modal-shadow:
+    0 34px 100px rgba(0, 0, 0, 0.66),
+    0 12px 28px -20px rgba(255, 255, 255, 0.44),
+    inset 0 -10px 24px -22px rgba(255, 255, 255, 0.24);
   --app-focus-ring: rgba(245, 245, 247, 0.14);
   --app-error-bg: rgba(255, 116, 86, 0.12);
   --app-error-border: rgba(255, 116, 86, 0.2);
   --app-error-text: #ffb199;
-  --app-toggle-bg: #2a2a2f;
-  --app-toggle-border: rgba(245, 245, 247, 0.16);
-  --app-toggle-thumb: #f5f5f7;
+  --app-toggle-bg: var(--app-bg);
+  --app-toggle-shadow:
+    0 5px 16px rgba(0, 0, 0, 0.5),
+    0 12px 26px -10px rgba(255, 255, 255, 0.95);
+  --app-toggle-thumb: #e6e6eb;
+  --app-toggle-thumb-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.34),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.56),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   --app-toggle-icon: #111113;
 }
 
 .app-header {
   background: color-mix(in srgb, var(--app-bg) 90%, transparent);
-  border-color: var(--app-border-soft);
+  border-bottom: 0;
+}
+
+.app-header::after {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: min(calc(100% - 40px), 940px);
+  height: 1px;
+  background: var(--app-border-soft);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.app-logo-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.app-logo-button:hover .app-title {
+  opacity: 0.82;
 }
 
 .app-title,
@@ -172,8 +230,13 @@ button:disabled {
 }
 
 .app-search-input {
-  border-color: transparent;
+  border: 0;
   box-shadow: var(--app-search-shadow);
+}
+
+.app-top-add-button,
+.app-card-action {
+  border: 0;
 }
 
 .app-search-input::placeholder,
@@ -190,19 +253,40 @@ button:disabled {
   box-shadow: var(--app-control-hover-shadow);
 }
 
+.app-shell[data-theme="light"] .app-card-action {
+  box-shadow: var(--app-action-recessed-shadow);
+}
+
+.app-shell[data-theme="light"] .app-card-action:hover {
+  box-shadow: var(--app-action-recessed-hover-shadow);
+}
+
+:root[data-theme="dark"] .app-shell .app-top-add-button:hover,
+.app-shell[data-theme="dark"] .app-top-add-button:hover {
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.72),
+    0 18px 38px -9px rgba(255, 255, 255, 1);
+}
+
+:root[data-theme="dark"] .app-shell .app-top-add-button,
+.app-shell[data-theme="dark"] .app-top-add-button {
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.58),
+    0 16px 34px -10px rgba(255, 255, 255, 0.94);
+}
+
 .app-theme-toggle {
   display: inline-flex;
   width: 34px;
   height: 20px;
   align-items: center;
-  border: 1px solid var(--app-toggle-border);
+  border: 0;
   border-radius: 9999px;
   background: var(--app-toggle-bg);
-  box-shadow: var(--app-mini-shadow);
+  box-shadow: var(--app-toggle-shadow);
   padding: 2px;
   transition:
     background 180ms ease,
-    border-color 180ms ease,
     box-shadow 180ms ease;
 }
 
@@ -214,29 +298,47 @@ button:disabled {
   justify-content: center;
   border-radius: 9999px;
   background: var(--app-toggle-thumb);
+  box-shadow: var(--app-toggle-thumb-shadow);
   color: var(--app-toggle-icon);
   transform: translateX(0);
   transition:
     transform 180ms ease,
     background 180ms ease,
+    box-shadow 180ms ease,
     color 180ms ease;
 }
 
 .app-theme-toggle[data-state="dark"] .app-theme-toggle-thumb {
-  transform: translateX(14px);
+  transform: translateX(16px);
 }
 
 .app-tab {
   color: var(--app-text);
+  transition: color 120ms ease;
 }
 
 .app-tab[data-active="false"] {
   color: var(--app-muted);
-  opacity: 0.68;
+  opacity: 1;
 }
 
 .app-tab[data-active="false"]:hover {
   opacity: 1;
+}
+
+.app-shell[data-theme="light"] .app-tab {
+  transition:
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.app-shell[data-theme="light"] .app-tab[data-active="false"] {
+  opacity: 0.68;
+}
+
+:root[data-theme="dark"] .app-shell .app-tab[data-active="false"]:hover,
+.app-shell[data-theme="dark"] .app-tab[data-active="false"]:hover {
+  color: #e6e6eb;
 }
 
 .app-selected-item,
@@ -249,6 +351,11 @@ button:disabled {
   background: var(--app-card-bg);
   border: 0;
   box-shadow: var(--app-card-shadow);
+}
+
+:root[data-theme="dark"] .app-shell .app-card-action,
+.app-shell[data-theme="dark"] .app-card-action {
+  background: var(--app-bg);
 }
 
 .app-muted-link {
