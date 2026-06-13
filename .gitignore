@@ -38,6 +38,9 @@
 # claude code (user-local settings)
 .claude/
 
+# personal notes
+PRIVATE_FUTURE_TODO.md
+
 # debug
 npm-debug.log*
 yarn-debug.log*
