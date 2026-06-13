@@ -513,7 +513,7 @@ export default function Home() {
 
         <section className="flex flex-1 flex-col gap-3 pt-4">
           {selectedItem ? (
-            <div className="app-selected-item flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-4 py-3">
+            <div className="app-selected-item flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-5 py-5">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="app-card-title break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
                   {selectedItem.title}
@@ -577,7 +577,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => openItemLayers(log)}
-                        className="app-card-title break-words text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]"
+                        className="app-card-title break-words p-0 text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)] active:translate-y-0"
                         aria-label={`Show layers for ${log.title}`}
                       >
                         {log.title}

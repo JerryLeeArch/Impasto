@@ -81,6 +81,8 @@ button:disabled {
   --app-search-focus-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
   --app-control-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   --app-control-hover-shadow: 0 10px 30px rgba(0, 0, 0, 0.21);
+  --app-card-action-shadow: 0 5px 16px rgba(0, 0, 0, 0.08);
+  --app-card-action-hover-shadow: 0 7px 20px rgba(0, 0, 0, 0.14);
   --app-action-recessed-shadow:
     inset 0 1px 3px rgba(0, 0, 0, 0.14),
     inset 0 -1px 0 rgba(255, 255, 255, 0.9);
@@ -234,9 +236,13 @@ button:disabled {
   box-shadow: var(--app-search-shadow);
 }
 
-.app-top-add-button,
+.app-top-add-button {
+  border: 0;
+}
+
 .app-card-action {
   border: 0;
+  box-shadow: var(--app-card-action-shadow);
 }
 
 .app-search-input::placeholder,
@@ -248,17 +254,20 @@ button:disabled {
   box-shadow: var(--app-search-focus-shadow);
 }
 
-.app-top-add-button:hover,
-.app-card-action:hover {
+.app-top-add-button:hover {
   box-shadow: var(--app-control-hover-shadow);
 }
 
+.app-card-action:hover {
+  box-shadow: var(--app-card-action-hover-shadow);
+}
+
 .app-shell[data-theme="light"] .app-card-action {
-  box-shadow: var(--app-action-recessed-shadow);
+  box-shadow: var(--app-card-action-shadow);
 }
 
 .app-shell[data-theme="light"] .app-card-action:hover {
-  box-shadow: var(--app-action-recessed-hover-shadow);
+  box-shadow: var(--app-card-action-hover-shadow);
 }
 
 :root[data-theme="dark"] .app-shell .app-top-add-button:hover,
@@ -345,6 +354,12 @@ button:disabled {
 .app-empty {
   background: var(--app-panel-bg);
   border-color: var(--app-border);
+}
+
+.app-selected-item {
+  background: var(--app-card-bg);
+  border: 0;
+  box-shadow: var(--app-card-shadow);
 }
 
 .app-card {
