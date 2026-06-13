@@ -2,50 +2,23 @@
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
-if "%PORT%"=="" set "PORT=4310"
-set "APP_URL=http://127.0.0.1:%PORT%"
+set "BOOTSTRAP=%SCRIPT_DIR%scripts\open-impasto-windows.ps1"
 
-cd /d "%SCRIPT_DIR%"
+if exist "%BOOTSTRAP%" goto run_bootstrap
 
-if not exist "data" mkdir "data"
+echo Could not find "%BOOTSTRAP%".
+echo Make sure you are launching Impasto from the project folder.
+pause
+exit /b 1
 
-where node >nul 2>nul
-if errorlevel 1 (
-  echo Node.js is required but was not found on this PC.
-  echo Opening the official Node.js download page...
-  start "" "https://nodejs.org/en/download"
-  exit /b 1
-)
+:run_bootstrap
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%BOOTSTRAP%"
+set "EXIT_CODE=%ERRORLEVEL%"
 
-where npm >nul 2>nul
-if errorlevel 1 (
-  echo npm is required but was not found on this PC.
-  echo Opening the official Node.js download page...
-  start "" "https://nodejs.org/en/download"
-  exit /b 1
-)
+if "%EXIT_CODE%"=="0" exit /b 0
 
-for /f "delims=" %%v in ('node -p "process.versions.node.split('.')[0]"') do set "NODE_MAJOR=%%v"
-if %NODE_MAJOR% LSS 24 (
-  echo Impasto requires Node.js 24+.
-  echo Current Node.js version:
-  node -v
-  echo Opening the official Node.js download page...
-  start "" "https://nodejs.org/en/download"
-  exit /b 1
-)
+echo.
+echo Impasto could not start. See the messages above for details.
+pause
 
-set "NEED_INSTALL="
-if not exist "node_modules" set "NEED_INSTALL=1"
-if not exist "node_modules\lucide-react" set "NEED_INSTALL=1"
-
-if defined NEED_INSTALL (
-  echo Installing dependencies from package-lock.json...
-  call npm ci
-  if errorlevel 1 exit /b 1
-)
-
-echo Starting Impasto...
-start "" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$url = '%APP_URL%'; for ($i = 0; $i -lt 80; $i++) { try { Invoke-WebRequest -Uri $url -UseBasicParsing | Out-Null; Start-Process $url; exit 0 } catch { Start-Sleep -Milliseconds 500 } }; Start-Process $url"
-echo Keep this window open while using Impasto.
-call npm run dev -- -p %PORT%
+exit /b %EXIT_CODE%
