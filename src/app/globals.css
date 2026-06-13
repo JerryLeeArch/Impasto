@@ -450,6 +450,70 @@ button:disabled {
   background: var(--app-panel-bg);
 }
 
+.app-floating-panel {
+  background: var(--app-card-bg);
+  border-color: var(--app-border);
+  box-shadow: var(--app-modal-shadow);
+}
+
+.app-suggestion-button {
+  background: transparent;
+  color: var(--app-text);
+}
+
+.app-suggestion-button:hover {
+  background: var(--app-panel-bg);
+}
+
+.app-credit-panel {
+  background: var(--app-panel-bg);
+  border-color: var(--app-border);
+}
+
+.app-credit-toggle {
+  background: var(--app-panel-bg);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.app-credit-toggle:hover {
+  background: var(--app-control-bg);
+}
+
+.app-chevron {
+  color: var(--app-muted);
+  transition: transform 160ms ease;
+}
+
+.app-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.app-mini-link {
+  color: var(--app-faint);
+}
+
+.app-mini-link:hover {
+  color: var(--app-text);
+}
+
+.app-ranking-number {
+  background: var(--app-panel-bg);
+  color: var(--app-text);
+}
+
+.app-ranking-row {
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.app-ranking-row[data-dragging="true"] {
+  opacity: 0.62;
+  transform: scale(0.99);
+}
+
 .app-primary-button {
   background: var(--app-primary-bg);
   color: var(--app-primary-text);

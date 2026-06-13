@@ -15,6 +15,7 @@
 
 # local app data
 /data/
+/.runtime/
 
 # next.js
 /.next/

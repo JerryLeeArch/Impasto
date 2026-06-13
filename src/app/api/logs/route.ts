@@ -14,10 +14,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const category = parseCategoryFilter(searchParams.get("category"));
   const itemId = searchParams.get("itemId") ?? "";
+  const albumTitle = searchParams.get("albumTitle") ?? "";
   const search = searchParams.get("search") ?? "";
 
   return NextResponse.json({
-    logs: listLogs({ category, itemId, search }),
+    logs: listLogs({ category, itemId, albumTitle, search }),
   });
 }
 
