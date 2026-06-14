@@ -2,7 +2,7 @@
 
 Impasto is a local-first taste log for music, images, and changing opinions.
 
-## Open Impasto
+## How to Run Impasto
 
 macOS:
 
