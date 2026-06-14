@@ -924,6 +924,10 @@ function getOrCreateItem(db: SQLiteDatabase, input: LogInput, userId: string) {
       userId,
     );
 
+    if (input.category === "music") {
+      syncItemArtists(db, existing.id, input.artists, userId);
+    }
+
     return existing.id;
   }
 
@@ -962,24 +966,26 @@ function getOrCreateItem(db: SQLiteDatabase, input: LogInput, userId: string) {
   );
 
   if (input.category === "music") {
-    setItemArtists(db, itemId, input.artists, userId);
+    syncItemArtists(db, itemId, input.artists, userId);
   }
 
   return itemId;
 }
 
-function setItemArtists(
+function syncItemArtists(
   db: SQLiteDatabase,
   itemId: string,
   artistNames: string[],
   userId: string,
 ) {
+  db.prepare("DELETE FROM item_artists WHERE item_id = ?").run(itemId);
+
   for (const [index, artistName] of artistNames.entries()) {
     const artistId = getOrCreateArtist(db, artistName, userId);
 
     db.prepare(
       `
-      INSERT OR IGNORE INTO item_artists (item_id, artist_id, sort_order)
+      INSERT INTO item_artists (item_id, artist_id, sort_order)
       VALUES (?, ?, ?)
       `,
     ).run(itemId, artistId, index);
@@ -1000,6 +1006,16 @@ function getOrCreateArtist(db: SQLiteDatabase, name: string, userId: string) {
     .get(userId, normalizedName) as { id: string } | undefined;
 
   if (existing) {
+    db.prepare(
+      `
+      UPDATE artists
+      SET name = ?
+      WHERE id = ?
+        AND user_id = ?
+        AND name <> ?
+      `,
+    ).run(name, existing.id, userId, name);
+
     return existing.id;
   }
 
