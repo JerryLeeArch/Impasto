@@ -999,10 +999,8 @@ export default function Home() {
                       setCategory(option.value);
                     }}
                     data-active={selected ? "true" : "false"}
-                    className={`app-tab h-7 shrink-0 text-[12px] text-[#1d1d1f] transition ${
-                      selected
-                        ? "font-semibold underline underline-offset-4"
-                        : "font-medium opacity-50 hover:opacity-100"
+                    className={`app-tab h-7 shrink-0 text-[12px] transition ${
+                      selected ? "font-semibold" : "font-medium"
                     }`}
                   >
                     {option.label}
@@ -1013,10 +1011,10 @@ export default function Home() {
                 type="button"
                 onClick={openRankingView}
                 data-active={viewMode === "ranking" ? "true" : "false"}
-                className={`app-tab h-7 shrink-0 text-[12px] text-[#1d1d1f] transition ${
+                className={`app-tab h-7 shrink-0 text-[12px] transition ${
                   viewMode === "ranking"
-                    ? "font-semibold underline underline-offset-4"
-                    : "font-medium opacity-50 hover:opacity-100"
+                    ? "font-semibold"
+                    : "font-medium"
                 }`}
               >
                 Ranking
