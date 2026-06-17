@@ -236,6 +236,7 @@ function Ensure-Dependencies {
   param([object]$Runtime)
 
   $env:PATH = "$($Runtime.Root);$env:PATH"
+  $env:NPM_CONFIG_CACHE = Join-Path $RuntimeRoot "npm-cache"
   $env:NPM_CONFIG_UPDATE_NOTIFIER = "false"
   $env:NEXT_TELEMETRY_DISABLED = "1"
 
