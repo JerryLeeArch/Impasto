@@ -1,4 +1,4 @@
--- User profile: public username (Instagram-style handle) with a 14-day change cooldown.
+-- User profile: public username (handle) with a 14-day change cooldown.
 
 alter table public.users
   add column if not exists username text,
