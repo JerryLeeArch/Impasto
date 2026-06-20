@@ -1926,10 +1926,12 @@ export default function Home() {
             return (
             <article
               key={log.id}
-              className="app-card rounded-lg bg-white px-5 pb-2 pt-5 sm:shadow-[0_10px_34px_rgba(0,0,0,0.05)]"
+              className={`app-card rounded-lg bg-white px-5 pb-2 sm:shadow-[0_10px_34px_rgba(0,0,0,0.05)] ${
+                ownerLabel ? "pt-3" : "pt-5"
+              }`}
             >
               {ownerLabel ? (
-                <div className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
                   <User size={13} strokeWidth={1.8} />
                   {ownerLabel}
                 </div>
