@@ -2730,6 +2730,12 @@ export default function Home() {
                     Sign out
                   </button>
                 </form>
+                <a
+                  href="/privacy"
+                  className="mt-3 inline-block text-[12px] text-[#86868b] underline transition hover:text-[#1d1d1f]"
+                >
+                  Privacy Policy
+                </a>
               </div>
             </div>
           </div>

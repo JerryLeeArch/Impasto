@@ -25,7 +25,9 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
-    pathname === "/login" || pathname.startsWith("/auth/callback");
+    pathname === "/login" ||
+    pathname === "/privacy" ||
+    pathname.startsWith("/auth/callback");
 
   if (!user && pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
