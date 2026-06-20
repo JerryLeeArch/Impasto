@@ -801,7 +801,7 @@ export default function Home() {
       credits: createCreditRows(log.credits),
       visibility: log.visibility,
     });
-    setIsCreditsFormOpen(log.credits.length > 0);
+    setIsCreditsFormOpen(false);
     setComposerMode("edit");
     setIsComposerOpen(true);
   }
