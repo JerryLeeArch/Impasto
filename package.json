@@ -3,17 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "preinstall": "node scripts/check-runtime.mjs",
     "setup": "npm ci",
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
-    "lint": "eslint",
-    "check:runtime": "node scripts/check-runtime.mjs"
+    "lint": "eslint"
   },
   "engines": {
-    "node": ">=24",
-    "npm": ">=10"
+    "node": "24.x"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.0",

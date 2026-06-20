@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV !== "production";
+
+// React/Turbopack need eval() for HMR + debugging in development only.
+// Production never uses eval, so it stays out of the CSP there.
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+  : "script-src 'self' 'unsafe-inline'";
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
@@ -21,7 +29,7 @@ const nextConfig: NextConfig = {
               "frame-ancestors 'none'",
               "form-action 'self'",
               "img-src 'self' data: https:",
-              "script-src 'self' 'unsafe-inline'",
+              scriptSrc,
               "style-src 'self' 'unsafe-inline'",
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
             ].join("; "),
