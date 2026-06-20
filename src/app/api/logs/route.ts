@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import {
   createLog,
   InputError,
+  listFeed,
   listLogs,
   parseLogInput,
   type CategoryFilter,
+  type FeedScope,
 } from "@/lib/db";
 import { getAuthenticatedClient } from "@/lib/supabase/auth";
 
@@ -17,11 +19,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
   const { searchParams } = new URL(request.url);
-  const category = parseCategoryFilter(searchParams.get("category"));
   const itemId = searchParams.get("itemId") ?? "";
   const albumTitle = searchParams.get("albumTitle") ?? "";
   const search = searchParams.get("search") ?? "";
+  const scope = parseScope(searchParams.get("scope"));
 
+  // Main home feed (own + friends' public logs) when scope is set and not
+  // drilling into a specific item/album.
+  if (scope && !itemId && !albumTitle) {
+    return NextResponse.json({
+      logs: await listFeed(auth.supabase, { scope, search }),
+    });
+  }
+
+  const category = parseCategoryFilter(searchParams.get("category"));
   return NextResponse.json({
     logs: await listLogs(auth.supabase, {
       category,
@@ -45,6 +56,14 @@ export async function POST(request: Request) {
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+function parseScope(value: string | null): FeedScope | null {
+  if (value === "all" || value === "mine" || value === "friends") {
+    return value;
+  }
+
+  return null;
 }
 
 function parseCategoryFilter(value: string | null): CategoryFilter {

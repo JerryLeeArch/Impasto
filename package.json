@@ -9,8 +9,7 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1",
     "lint": "eslint",
-    "check:runtime": "node scripts/check-runtime.mjs",
-    "migrate:supabase": "node scripts/migrate-sqlite-to-supabase.mjs"
+    "check:runtime": "node scripts/check-runtime.mjs"
   },
   "engines": {
     "node": ">=24",

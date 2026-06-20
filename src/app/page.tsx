@@ -13,14 +13,15 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Album,
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  Disc3,
   GripVertical,
   Image,
   ListOrdered,
   Loader2,
+  Lock,
   LogOut,
   Moon,
   Music,
@@ -29,6 +30,8 @@ import {
   Search,
   Sun,
   Trash2,
+  User,
+  Users,
   type LucideIcon,
   X,
 } from "lucide-react";
@@ -37,6 +40,8 @@ type Category = "music" | "image" | "other";
 type CategoryFilter = Category | "all";
 type Rating = "like" | "neutral" | "dislike";
 type MusicKind = "song" | "album";
+type Visibility = "public" | "private";
+type FeedScope = "all" | "mine" | "friends";
 type ViewMode = "feed" | "ranking";
 
 type Credit = {
@@ -62,8 +67,25 @@ type TasteLog = {
   rating: Rating;
   artists: string[];
   credits: Credit[];
+  visibility: Visibility;
   createdAt: string;
   updatedAt: string;
+  isMine?: boolean;
+  ownerUsername?: string | null;
+  ownerDisplayName?: string | null;
+};
+
+type FriendSummary = {
+  friendshipId: string;
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+};
+
+type FriendList = {
+  accepted: FriendSummary[];
+  incoming: FriendSummary[];
+  outgoing: FriendSummary[];
 };
 
 type MusicItemSummary = {
@@ -89,6 +111,7 @@ type FormState = {
   rating: Rating;
   artists: string;
   credits: CreditFormRow[];
+  visibility: Visibility;
 };
 
 type ComposerMode = "create" | "edit" | "layer";
@@ -107,6 +130,16 @@ type SelectedAlbum = {
   albumTitle: string;
   artists: string[];
 };
+
+type Profile = {
+  username: string | null;
+  displayName: string | null;
+  email: string | null;
+  usernameChangedAt: string | null;
+  defaultVisibility: Visibility;
+};
+
+const usernameCooldownDays = 14;
 
 const themeStorageKey = "impasto-theme";
 const themeCookieMaxAge = 60 * 60 * 24 * 365;
@@ -135,6 +168,7 @@ function createEmptyForm(): FormState {
     rating: "like",
     artists: "",
     credits: createCreditRows(),
+    visibility: "private",
   };
 }
 
@@ -151,10 +185,25 @@ const composeCategoryOptions: { value: Category; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+const visibilityOptions: {
+  value: Visibility;
+  label: string;
+  icon: LucideIcon;
+}[] = [
+  { value: "private", label: "Private", icon: Lock },
+  { value: "public", label: "Friends", icon: Users },
+];
+
+const feedScopeOptions: { value: FeedScope; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "mine", label: "Mine" },
+  { value: "friends", label: "Friends" },
+];
+
 const musicKindOptions: { value: MusicKind; label: string; icon: LucideIcon }[] =
   [
     { value: "song", label: "Song", icon: Music },
-    { value: "album", label: "Album", icon: Album },
+    { value: "album", label: "Album", icon: Disc3 },
   ];
 
 const ratingOptions: {
@@ -214,7 +263,20 @@ export default function Home() {
   const [isCandidatePickerOpen, setIsCandidatePickerOpen] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState("");
   const [draggingRankingId, setDraggingRankingId] = useState<string | null>(null);
+  const [draggingCreditId, setDraggingCreditId] = useState<string | null>(null);
   const [isRankingSaving, setIsRankingSaving] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState("");
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const [isUsernameLocked, setIsUsernameLocked] = useState(false);
+  const [feedScope, setFeedScope] = useState<FeedScope>("all");
+  const [isFriendsOpen, setIsFriendsOpen] = useState(false);
+  const [friendUsernameDraft, setFriendUsernameDraft] = useState("");
+  const [friendError, setFriendError] = useState<string | null>(null);
+  const [friendNotice, setFriendNotice] = useState<string | null>(null);
+  const [isFriendSaving, setIsFriendSaving] = useState(false);
   const pendingScrollRef = useRef<number | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 180);
@@ -241,7 +303,7 @@ export default function Home() {
       ? ["logs", "item", selectedItem.id]
       : selectedAlbum
         ? ["logs", "album", selectedAlbum.albumTitle]
-      : ["logs", "feed", trimmedSearch, category],
+      : ["logs", "feed", feedScope, trimmedSearch],
     enabled: viewMode === "feed",
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -251,12 +313,9 @@ export default function Home() {
       } else if (selectedAlbum) {
         params.set("albumTitle", selectedAlbum.albumTitle);
       } else {
+        params.set("scope", feedScope);
         if (trimmedSearch) {
           params.set("search", trimmedSearch);
-        }
-
-        if (category !== "all") {
-          params.set("category", category);
         }
       }
 
@@ -299,6 +358,55 @@ export default function Home() {
       return matches.length > 0 ? matches : undefined;
     },
   });
+
+  const isDrilldown = Boolean(selectedItem || selectedAlbum);
+  const displayLogs = useMemo(() => {
+    if (isDrilldown || category === "all") {
+      return logs;
+    }
+    return logs.filter((log) => log.category === category);
+  }, [logs, isDrilldown, category]);
+
+  const { data: friendList } = useQuery<FriendList>({
+    queryKey: ["friends"],
+    queryFn: async () => {
+      const response = await fetch("/api/friends", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Could not load friends.");
+      }
+      const data = (await response.json()) as { friends: FriendList };
+      return data.friends;
+    },
+  });
+  const incomingFriendCount = friendList?.incoming.length ?? 0;
+
+  const { data: profile } = useQuery<Profile>({
+    queryKey: ["profile"],
+    queryFn: async () => {
+      const response = await fetch("/api/profile", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Could not load profile.");
+      }
+      const data = (await response.json()) as { profile: Profile };
+      return data.profile;
+    },
+  });
+
+  const usernameNextChangeAt = profile?.usernameChangedAt
+    ? new Date(
+        new Date(profile.usernameChangedAt).getTime() +
+          usernameCooldownDays * 24 * 60 * 60 * 1000,
+      )
+    : null;
+  const profileInitial = (
+    profile?.username ||
+    profile?.displayName ||
+    profile?.email ||
+    ""
+  )
+    .trim()
+    .charAt(0)
+    .toUpperCase();
 
   const { data: artistSuggestions = [] } = useQuery({
     queryKey: ["artists", debouncedArtistSearch],
@@ -491,7 +599,7 @@ export default function Home() {
   const showInitialLoading =
     viewMode === "feed" && isPending && logs.length === 0;
   const showEmptyState =
-    viewMode === "feed" && !isPending && !isError && logs.length === 0;
+    viewMode === "feed" && !isPending && !isError && displayLogs.length === 0;
   const themeLabel = isDarkMode ? "Switch to light mode" : "Switch to dark mode";
   const rankingTitle =
     rankingKind === "song" ? "My Favorite Songs" : "My Favorite Albums";
@@ -499,10 +607,184 @@ export default function Home() {
     rankingKind === "song" ? "No favorite songs yet." : "No favorite albums yet.";
 
   function openCreateComposer() {
-    setForm(createEmptyForm());
+    setForm({
+      ...createEmptyForm(),
+      visibility: profile?.defaultVisibility ?? "private",
+    });
     setIsCreditsFormOpen(false);
     setComposerMode("create");
     setIsComposerOpen(true);
+  }
+
+  function openProfile() {
+    setUsernameDraft(profile?.username ?? "");
+    setProfileError(null);
+    setProfileNotice(null);
+    const lockedUntil = profile?.usernameChangedAt
+      ? new Date(profile.usernameChangedAt).getTime() +
+        usernameCooldownDays * 24 * 60 * 60 * 1000
+      : 0;
+    setIsUsernameLocked(lockedUntil > Date.now());
+    setIsProfileOpen(true);
+  }
+
+  async function handleUsernameSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isProfileSaving || isUsernameLocked) {
+      return;
+    }
+
+    setIsProfileSaving(true);
+    setProfileError(null);
+    setProfileNotice(null);
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: usernameDraft.trim().toLowerCase() }),
+      });
+
+      const data = (await response.json()) as {
+        profile?: Profile;
+        error?: string;
+      };
+
+      if (!response.ok || !data.profile) {
+        setProfileError(data.error ?? "Could not update your username.");
+        return;
+      }
+
+      queryClient.setQueryData(["profile"], data.profile);
+      setUsernameDraft(data.profile.username ?? "");
+      setIsUsernameLocked(true);
+      setProfileNotice("Username updated.");
+    } catch {
+      setProfileError("Could not update your username.");
+    } finally {
+      setIsProfileSaving(false);
+    }
+  }
+
+  async function handleSetDefaultVisibility(visibility: Visibility) {
+    if (visibility === (profile?.defaultVisibility ?? "private")) {
+      return;
+    }
+
+    setProfileError(null);
+    setProfileNotice(null);
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultVisibility: visibility }),
+      });
+
+      const data = (await response.json()) as {
+        profile?: Profile;
+        error?: string;
+      };
+
+      if (!response.ok || !data.profile) {
+        setProfileError(data.error ?? "Could not update default visibility.");
+        return;
+      }
+
+      queryClient.setQueryData(["profile"], data.profile);
+    } catch {
+      setProfileError("Could not update default visibility.");
+    }
+  }
+
+  function openFriends() {
+    setFriendUsernameDraft("");
+    setFriendError(null);
+    setFriendNotice(null);
+    setIsFriendsOpen(true);
+    void queryClient.invalidateQueries({ queryKey: ["friends"] });
+  }
+
+  async function runFriendAction(
+    request: () => Promise<Response>,
+    fallbackMessage: string,
+    successMessage?: string,
+  ) {
+    setIsFriendSaving(true);
+    setFriendError(null);
+    setFriendNotice(null);
+
+    try {
+      const response = await request();
+      const data = (await response.json()) as {
+        friends?: FriendList;
+        error?: string;
+      };
+
+      if (!response.ok || !data.friends) {
+        setFriendError(data.error ?? fallbackMessage);
+        return false;
+      }
+
+      queryClient.setQueryData(["friends"], data.friends);
+      await queryClient.invalidateQueries({ queryKey: ["logs"] });
+      if (successMessage) {
+        setFriendNotice(successMessage);
+      }
+      return true;
+    } catch {
+      setFriendError(fallbackMessage);
+      return false;
+    } finally {
+      setIsFriendSaving(false);
+    }
+  }
+
+  async function handleSendFriendRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const username = friendUsernameDraft.trim().toLowerCase();
+    if (!username || isFriendSaving) {
+      return;
+    }
+
+    const ok = await runFriendAction(
+      () =>
+        fetch("/api/friends", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username }),
+        }),
+      "Could not send the friend request.",
+      "Friend request sent.",
+    );
+
+    if (ok) {
+      setFriendUsernameDraft("");
+    }
+  }
+
+  async function handleRespondFriend(friendshipId: string, accept: boolean) {
+    await runFriendAction(
+      () =>
+        fetch("/api/friends", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ friendshipId, accept }),
+        }),
+      "Could not update the friend request.",
+    );
+  }
+
+  async function handleRemoveFriend(friendshipId: string) {
+    await runFriendAction(
+      () =>
+        fetch("/api/friends", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ friendshipId }),
+        }),
+      "Could not update your friends.",
+    );
   }
 
   function openEditComposer(log: TasteLog) {
@@ -517,6 +799,7 @@ export default function Home() {
       rating: log.rating,
       artists: log.artists.join(", "),
       credits: createCreditRows(log.credits),
+      visibility: log.visibility,
     });
     setIsCreditsFormOpen(log.credits.length > 0);
     setComposerMode("edit");
@@ -535,6 +818,7 @@ export default function Home() {
       rating: log.rating,
       artists: log.artists.join(", "),
       credits: createCreditRows(log.credits),
+      visibility: log.visibility,
     });
     setIsCreditsFormOpen(log.credits.length > 0);
     setComposerMode("layer");
@@ -730,6 +1014,36 @@ export default function Home() {
     }));
   }
 
+  function handleCreditDragStart(event: DragEvent<HTMLElement>, id: string) {
+    setDraggingCreditId(id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", id);
+  }
+
+  function handleCreditDrop(targetId: string) {
+    if (!draggingCreditId || draggingCreditId === targetId) {
+      setDraggingCreditId(null);
+      return;
+    }
+
+    setForm((current) => {
+      const fromIndex = current.credits.findIndex(
+        (row) => row.id === draggingCreditId,
+      );
+      const toIndex = current.credits.findIndex((row) => row.id === targetId);
+
+      if (fromIndex < 0 || toIndex < 0) {
+        return current;
+      }
+
+      return {
+        ...current,
+        credits: moveArrayItem(current.credits, fromIndex, toIndex),
+      };
+    });
+    setDraggingCreditId(null);
+  }
+
   function selectCreditSuggestion(suggestion: string) {
     if (!activeCreditInput || !activeCreditRow) {
       return;
@@ -891,6 +1205,7 @@ export default function Home() {
       albumTitle: form.category === "music" ? form.albumTitle : "",
       genres: form.category === "music" ? splitGenres(form.genres) : [],
       credits: form.category === "music" ? creditRowsToCredits(form.credits) : [],
+      visibility: form.visibility,
     };
 
     try {
@@ -1185,16 +1500,19 @@ export default function Home() {
             </button>
 
             <div className="col-start-3 row-start-2 flex items-center justify-self-end gap-1.5 self-center">
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="app-icon-button inline-flex h-7 w-7 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-                  aria-label="Sign out"
-                  title="Sign out"
-                >
-                  <LogOut size={13} strokeWidth={1.8} />
-                </button>
-              </form>
+              <button
+                type="button"
+                onClick={openProfile}
+                className="app-profile-button inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-[#d2d2d7]/70 bg-[#f5f5f7] text-[11px] font-semibold uppercase text-[#1d1d1f] transition hover:ring-1 hover:ring-[#d2d2d7]"
+                aria-label="Profile"
+                title="Profile"
+              >
+                {profileInitial ? (
+                  profileInitial
+                ) : (
+                  <User size={13} strokeWidth={1.8} />
+                )}
+              </button>
               <button
                 type="button"
                 role="switch"
@@ -1256,6 +1574,29 @@ export default function Home() {
         </header>
 
         <section className="flex flex-1 flex-col gap-3 pt-4">
+          {viewMode === "feed" && !selectedItem && !selectedAlbum ? (
+            <div className="flex items-center gap-1.5">
+              {feedScopeOptions.map((option) => {
+                const selected = feedScope === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setFeedScope(option.value)}
+                    data-active={selected ? "true" : "false"}
+                    className={`app-choice h-7 rounded-full border px-3 text-[12px] font-semibold transition ${
+                      selected
+                        ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
+                        : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
           {viewMode === "feed" && (selectedItem || selectedAlbum) ? (
             <div className="app-selected-item flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-5 py-5">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -1543,36 +1884,74 @@ export default function Home() {
           {showEmptyState ? (
             <div className="app-empty flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-[#d2d2d7] bg-white px-6 text-center">
               <p className="app-title text-[19px] font-semibold text-[#1d1d1f]">
-                No logs yet.
+                {!isDrilldown && feedScope === "friends"
+                  ? "No friend logs yet."
+                  : "No logs yet."}
               </p>
-              <button
-                type="button"
-                onClick={openCreateComposer}
-                className="app-primary-button mt-5 inline-flex h-10 items-center gap-2 rounded-full border border-transparent bg-[#1d1d1f] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
-              >
-                <Plus size={16} strokeWidth={2} />
-                New log
-              </button>
+              {!isDrilldown && feedScope === "friends" ? (
+                <>
+                  <p className="mt-1.5 text-[13px] text-[#86868b]">
+                    Add friends to see the logs they share.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openFriends}
+                    className="app-primary-button mt-5 inline-flex h-10 items-center gap-2 rounded-full border border-transparent bg-[#1d1d1f] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
+                  >
+                    <Users size={16} strokeWidth={2} />
+                    Add friends
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openCreateComposer}
+                  className="app-primary-button mt-5 inline-flex h-10 items-center gap-2 rounded-full border border-transparent bg-[#1d1d1f] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
+                >
+                  <Plus size={16} strokeWidth={2} />
+                  New log
+                </button>
+              )}
             </div>
           ) : null}
 
-          {viewMode === "feed" ? logs.map((log) => (
+          {viewMode === "feed" ? displayLogs.map((log) => {
+            const isMine = log.isMine !== false;
+            const ownerLabel = isMine
+              ? null
+              : log.ownerUsername
+                ? `@${log.ownerUsername}`
+                : log.ownerDisplayName ?? "Friend";
+
+            return (
             <article
               key={log.id}
               className="app-card rounded-lg bg-white px-5 pb-2 pt-5 sm:shadow-[0_10px_34px_rgba(0,0,0,0.05)]"
             >
+              {ownerLabel ? (
+                <div className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
+                  <User size={13} strokeWidth={1.8} />
+                  {ownerLabel}
+                </div>
+              ) : null}
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   {selectedItem ? null : (
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <button
-                        type="button"
-                        onClick={() => openItemLayers(log)}
-                        className="app-card-title break-words p-0 text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)] active:translate-y-0"
-                        aria-label={`Show layers for ${log.title}`}
-                      >
-                        {log.title}
-                      </button>
+                      {isMine ? (
+                        <button
+                          type="button"
+                          onClick={() => openItemLayers(log)}
+                          className="app-card-title break-words p-0 text-left text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f] transition hover:drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)] active:translate-y-0"
+                          aria-label={`Show layers for ${log.title}`}
+                        >
+                          {log.title}
+                        </button>
+                      ) : (
+                        <span className="app-card-title break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+                          {log.title}
+                        </span>
+                      )}
                       {log.artists.map((artist) => (
                         <button
                           key={artist}
@@ -1605,16 +1984,42 @@ export default function Home() {
                   >
                     <CategoryBadge category={log.category} />
                     <RatingBadge rating={log.rating} />
-                    {log.albumTitle ? (
-                      <button
-                        type="button"
-                        onClick={() => openAlbumSongs(log.albumTitle, log.artists)}
-                        className="app-muted-link app-badge inline-flex items-center gap-1.5 text-left text-[12px] font-semibold text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
-                        aria-label={`Show songs on ${log.albumTitle}`}
+                    {isMine ? (
+                      <span
+                        className="app-badge inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]"
+                        title={
+                          log.visibility === "public"
+                            ? "Visible to friends"
+                            : "Only you"
+                        }
                       >
-                        <Album size={13} strokeWidth={1.7} />
-                        {log.albumTitle}
-                      </button>
+                        {log.visibility === "public" ? (
+                          <Users size={13} strokeWidth={1.7} />
+                        ) : (
+                          <Lock size={13} strokeWidth={1.7} />
+                        )}
+                        {log.visibility === "public" ? "Friends" : "Private"}
+                      </span>
+                    ) : null}
+                    {log.albumTitle ? (
+                      isMine ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openAlbumSongs(log.albumTitle, log.artists)
+                          }
+                          className="app-muted-link app-badge inline-flex items-center gap-1.5 text-left text-[12px] font-semibold text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
+                          aria-label={`Show songs on ${log.albumTitle}`}
+                        >
+                          <Disc3 size={13} strokeWidth={1.7} />
+                          {log.albumTitle}
+                        </button>
+                      ) : (
+                        <span className="app-badge inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
+                          <Disc3 size={13} strokeWidth={1.7} />
+                          {log.albumTitle}
+                        </span>
+                      )
                     ) : null}
                     {log.genres.map((genre) => (
                       <span
@@ -1626,33 +2031,35 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => openLayerComposer(log)}
-                    className="app-card-action inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
-                    aria-label={`Add layer for ${log.title}`}
-                  >
-                    <Plus size={13} strokeWidth={1.8} />
-                    Impasto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openEditComposer(log)}
-                    className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-                    aria-label={`Edit ${log.title}`}
-                  >
-                    <Pencil size={15} strokeWidth={1.7} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(log.id)}
-                    className="app-delete-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36]"
-                    aria-label={`Delete ${log.title}`}
-                  >
-                    <Trash2 size={15} strokeWidth={1.7} />
-                  </button>
-                </div>
+                {isMine ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openLayerComposer(log)}
+                      className="app-card-action inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
+                      aria-label={`Add layer for ${log.title}`}
+                    >
+                      <Plus size={13} strokeWidth={1.8} />
+                      Impasto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditComposer(log)}
+                      className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                      aria-label={`Edit ${log.title}`}
+                    >
+                      <Pencil size={15} strokeWidth={1.7} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(log.id)}
+                      className="app-delete-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36]"
+                      aria-label={`Delete ${log.title}`}
+                    >
+                      <Trash2 size={15} strokeWidth={1.7} />
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               {log.credits.length > 0 && expandedCreditIds.has(log.id) ? (
@@ -1688,7 +2095,8 @@ export default function Home() {
                 </>
               ) : null}
             </article>
-          )) : null}
+            );
+          }) : null}
         </section>
       </div>
 
@@ -1904,7 +2312,24 @@ export default function Home() {
                         <div
                           key={row.id}
                           className="app-credit-row"
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => handleCreditDrop(row.id)}
+                          data-dragging={
+                            draggingCreditId === row.id ? "true" : "false"
+                          }
                         >
+                          <button
+                            type="button"
+                            draggable
+                            onDragStart={(event) =>
+                              handleCreditDragStart(event, row.id)
+                            }
+                            onDragEnd={() => setDraggingCreditId(null)}
+                            className="app-credit-grip inline-flex h-9 w-6 cursor-grab items-center justify-center text-[#86868b] transition hover:text-[#1d1d1f] active:cursor-grabbing"
+                            aria-label={`Reorder ${row.role || "credit"} row`}
+                          >
+                            <GripVertical size={15} strokeWidth={1.7} />
+                          </button>
                           <div className="app-credit-role relative">
                             <input
                               value={row.role}
@@ -2082,6 +2507,43 @@ export default function Home() {
                   placeholder="What did you like or dislike?"
                 />
               </div>
+
+              <div>
+                <label
+                  htmlFor="visibility"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Visibility
+                </label>
+                <div className="grid grid-cols-2 gap-2" id="visibility">
+                  {visibilityOptions.map((option) => {
+                    const selected = form.visibility === option.value;
+                    const Icon = option.icon;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            visibility: option.value,
+                          }))
+                        }
+                        data-active={selected ? "true" : "false"}
+                        className={`app-choice inline-flex h-9 items-center justify-center gap-1.5 rounded-full border text-[13px] font-semibold transition ${
+                          selected
+                            ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
+                            : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
+                        }`}
+                      >
+                        <Icon size={14} strokeWidth={1.8} />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-3">
@@ -2113,8 +2575,348 @@ export default function Home() {
           </form>
         </div>
       ) : null}
+
+      {isProfileOpen ? (
+        <div className="app-overlay fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-[#1d1d1f]/24 px-3 py-6 backdrop-blur-sm sm:py-8">
+          <div className="app-composer w-full max-w-md overflow-y-auto rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="app-title text-[24px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+                Profile
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsProfileOpen(false)}
+                className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                aria-label="Close profile"
+              >
+                <X size={17} strokeWidth={1.7} />
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              <div>
+                <p className="app-label text-[13px] font-semibold text-[#6e6e73]">
+                  {profile?.displayName ?? "Me"}
+                </p>
+                <p className="mt-0.5 text-[13px] text-[#86868b]">
+                  {profile?.email ?? ""}
+                </p>
+              </div>
+
+              <form onSubmit={(event) => void handleUsernameSubmit(event)}>
+                <label
+                  htmlFor="username"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Username
+                </label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-[#86868b]">
+                    @
+                  </span>
+                  <input
+                    id="username"
+                    type="text"
+                    value={usernameDraft}
+                    onChange={(event) => {
+                      setUsernameDraft(event.target.value);
+                      setProfileError(null);
+                      setProfileNotice(null);
+                    }}
+                    disabled={isUsernameLocked || isProfileSaving}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="set username"
+                    className="app-search-input h-9 w-full rounded-lg border border-[#d2d2d7]/80 bg-white pl-7 pr-3 text-[14px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#1d1d1f] disabled:bg-[#f5f5f7] disabled:text-[#86868b]"
+                  />
+                </div>
+                <p className="mt-1.5 text-[12px] text-[#86868b]">
+                  3–30 lowercase letters, numbers, periods, or underscores.
+                  Changeable once every {usernameCooldownDays} days.
+                </p>
+                {isUsernameLocked && usernameNextChangeAt ? (
+                  <p className="mt-1 text-[12px] text-[#86868b]">
+                    Next change available on{" "}
+                    {usernameNextChangeAt.toLocaleDateString()}.
+                  </p>
+                ) : null}
+                {profileError ? (
+                  <p className="mt-2 text-[12px] text-[#c9342f]" role="alert">
+                    {profileError}
+                  </p>
+                ) : null}
+                {profileNotice ? (
+                  <p className="mt-2 text-[12px] text-[#1d8a4e]">
+                    {profileNotice}
+                  </p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={
+                    isProfileSaving ||
+                    isUsernameLocked ||
+                    usernameDraft.trim().toLowerCase() ===
+                      (profile?.username ?? "")
+                  }
+                  className="app-primary-button mt-3 inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-full bg-[#1d1d1f] px-5 text-[14px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isProfileSaving ? (
+                    <Loader2
+                      className="animate-spin"
+                      size={16}
+                      strokeWidth={1.7}
+                    />
+                  ) : null}
+                  Save
+                </button>
+              </form>
+
+              <div>
+                <p className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]">
+                  Default visibility for new logs
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {visibilityOptions.map((option) => {
+                    const selected =
+                      (profile?.defaultVisibility ?? "private") === option.value;
+                    const Icon = option.icon;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          void handleSetDefaultVisibility(option.value)
+                        }
+                        data-active={selected ? "true" : "false"}
+                        className={`app-choice inline-flex h-9 items-center justify-center gap-1.5 rounded-full border text-[13px] font-semibold transition ${
+                          selected
+                            ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
+                            : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
+                        }`}
+                      >
+                        <Icon size={14} strokeWidth={1.8} />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t border-[#d2d2d7]/60 pt-4">
+                <button
+                  type="button"
+                  onClick={openFriends}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-[#d2d2d7]/80 px-4 text-[14px] font-semibold text-[#1d1d1f] transition hover:bg-[#f5f5f7]"
+                >
+                  <Users size={15} strokeWidth={1.8} />
+                  Friends
+                  {incomingFriendCount > 0 ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1d1d1f] px-1.5 text-[11px] font-semibold text-white">
+                      {incomingFriendCount}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
+
+              <div className="border-t border-[#d2d2d7]/60 pt-4">
+                <form action="/auth/signout" method="post">
+                  <button
+                    type="submit"
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-[#d2d2d7]/80 px-4 text-[14px] font-semibold text-[#1d1d1f] transition hover:bg-[#f5f5f7]"
+                  >
+                    <LogOut size={15} strokeWidth={1.8} />
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isFriendsOpen ? (
+        <div className="app-overlay fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-[#1d1d1f]/24 px-3 py-6 backdrop-blur-sm sm:py-8">
+          <div className="app-composer w-full max-w-md overflow-y-auto rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="app-title text-[24px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+                Friends
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsFriendsOpen(false)}
+                className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                aria-label="Close friends"
+              >
+                <X size={17} strokeWidth={1.7} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(event) => void handleSendFriendRequest(event)}
+              className="mb-2"
+            >
+              <label
+                htmlFor="friend-username"
+                className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+              >
+                Add a friend by username
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-[#86868b]">
+                    @
+                  </span>
+                  <input
+                    id="friend-username"
+                    type="text"
+                    value={friendUsernameDraft}
+                    onChange={(event) => {
+                      setFriendUsernameDraft(event.target.value);
+                      setFriendError(null);
+                      setFriendNotice(null);
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="username"
+                    className="app-search-input h-9 w-full rounded-lg border border-[#d2d2d7]/80 bg-white pl-7 pr-3 text-[14px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#1d1d1f]"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isFriendSaving || !friendUsernameDraft.trim()}
+                  className="app-primary-button inline-flex h-9 items-center justify-center rounded-full bg-[#1d1d1f] px-4 text-[14px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Add
+                </button>
+              </div>
+            </form>
+            {friendError ? (
+              <p className="mb-2 text-[12px] text-[#c9342f]" role="alert">
+                {friendError}
+              </p>
+            ) : null}
+            {friendNotice ? (
+              <p className="mb-2 text-[12px] text-[#1d8a4e]">{friendNotice}</p>
+            ) : null}
+
+            {friendList && friendList.incoming.length > 0 ? (
+              <div className="mt-4">
+                <p className="app-label mb-1.5 text-[13px] font-semibold text-[#6e6e73]">
+                  Requests received
+                </p>
+                <div className="grid gap-1.5">
+                  {friendList.incoming.map((friend) => (
+                    <div
+                      key={friend.friendshipId}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-[#f5f5f7] px-3 py-2"
+                    >
+                      <span className="min-w-0 truncate text-[14px] font-medium text-[#1d1d1f]">
+                        {friendDisplay(friend)}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isFriendSaving}
+                          onClick={() =>
+                            void handleRespondFriend(friend.friendshipId, true)
+                          }
+                          className="inline-flex h-8 items-center justify-center rounded-full bg-[#1d1d1f] px-3 text-[12px] font-semibold text-white transition hover:bg-black disabled:opacity-60"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isFriendSaving}
+                          onClick={() =>
+                            void handleRespondFriend(friend.friendshipId, false)
+                          }
+                          className="inline-flex h-8 items-center justify-center rounded-full border border-[#d2d2d7]/80 px-3 text-[12px] font-semibold text-[#1d1d1f] transition hover:bg-white disabled:opacity-60"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {friendList && friendList.outgoing.length > 0 ? (
+              <div className="mt-4">
+                <p className="app-label mb-1.5 text-[13px] font-semibold text-[#6e6e73]">
+                  Requests sent
+                </p>
+                <div className="grid gap-1.5">
+                  {friendList.outgoing.map((friend) => (
+                    <div
+                      key={friend.friendshipId}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-[#f5f5f7] px-3 py-2"
+                    >
+                      <span className="min-w-0 truncate text-[14px] font-medium text-[#1d1d1f]">
+                        {friendDisplay(friend)}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isFriendSaving}
+                        onClick={() =>
+                          void handleRemoveFriend(friend.friendshipId)
+                        }
+                        className="inline-flex h-8 shrink-0 items-center justify-center rounded-full border border-[#d2d2d7]/80 px-3 text-[12px] font-semibold text-[#1d1d1f] transition hover:bg-white disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4">
+              <p className="app-label mb-1.5 text-[13px] font-semibold text-[#6e6e73]">
+                Your friends
+              </p>
+              {friendList && friendList.accepted.length > 0 ? (
+                <div className="grid gap-1.5">
+                  {friendList.accepted.map((friend) => (
+                    <div
+                      key={friend.friendshipId}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-[#f5f5f7] px-3 py-2"
+                    >
+                      <span className="min-w-0 truncate text-[14px] font-medium text-[#1d1d1f]">
+                        {friendDisplay(friend)}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isFriendSaving}
+                        onClick={() =>
+                          void handleRemoveFriend(friend.friendshipId)
+                        }
+                        className="app-delete-button inline-flex h-8 shrink-0 items-center justify-center rounded-full px-3 text-[12px] font-semibold text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36] disabled:opacity-60"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[13px] text-[#86868b]">No friends yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
+}
+
+function friendDisplay(friend: FriendSummary) {
+  if (friend.username) {
+    return `@${friend.username}`;
+  }
+  return friend.displayName ?? "Unknown user";
 }
 
 function CreditSuggestionList({

@@ -495,13 +495,23 @@ button:disabled {
 
 .app-credit-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: 24px minmax(0, 1fr) 36px;
   gap: 0.5rem;
   align-items: start;
 }
 
-.app-credit-role {
+.app-credit-row[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+.app-credit-grip {
   grid-column: 1;
+  grid-row: 1;
+  touch-action: none;
+}
+
+.app-credit-role {
+  grid-column: 2;
   grid-row: 1;
 }
 
@@ -511,31 +521,36 @@ button:disabled {
 }
 
 .app-credit-remove {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1;
 }
 
 @media (min-width: 640px) {
   .app-credit-row {
-    grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1fr) 36px;
+    grid-template-columns: 24px minmax(120px, 0.55fr) minmax(0, 1fr) 36px;
   }
 
+  .app-credit-grip,
   .app-credit-role,
   .app-credit-names,
   .app-credit-remove {
     grid-row: 1;
   }
 
-  .app-credit-role {
+  .app-credit-grip {
     grid-column: 1;
   }
 
-  .app-credit-names {
+  .app-credit-role {
     grid-column: 2;
   }
 
-  .app-credit-remove {
+  .app-credit-names {
     grid-column: 3;
+  }
+
+  .app-credit-remove {
+    grid-column: 4;
   }
 }
 
