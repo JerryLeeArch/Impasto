@@ -4,6 +4,8 @@ export type Category = "music" | "image" | "other";
 export type CategoryFilter = Category | "all";
 export type Rating = "like" | "neutral" | "dislike";
 export type MusicKind = "song" | "album";
+export type Visibility = "public" | "private";
+export type FeedScope = "all" | "mine" | "friends";
 
 export type Credit = {
   role: string;
@@ -20,6 +22,7 @@ export type LogInput = {
   albumTitle: string;
   genres: string[];
   credits: Credit[];
+  visibility: Visibility;
 };
 
 export type TasteLog = {
@@ -34,8 +37,15 @@ export type TasteLog = {
   rating: Rating;
   artists: string[];
   credits: Credit[];
+  visibility: Visibility;
   createdAt: string;
   updatedAt: string;
+};
+
+export type FeedLog = TasteLog & {
+  isMine: boolean;
+  ownerUsername: string | null;
+  ownerDisplayName: string | null;
 };
 
 export type MusicItemSummary = {
@@ -48,6 +58,27 @@ export type MusicItemSummary = {
 
 export type FavoriteRankingEntry = MusicItemSummary & {
   rank: number;
+};
+
+export type Profile = {
+  username: string | null;
+  displayName: string | null;
+  email: string | null;
+  usernameChangedAt: string | null;
+  defaultVisibility: Visibility;
+};
+
+export type FriendSummary = {
+  friendshipId: string;
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+};
+
+export type FriendList = {
+  accepted: FriendSummary[];
+  incoming: FriendSummary[];
+  outgoing: FriendSummary[];
 };
 
 export class InputError extends Error {
@@ -81,6 +112,7 @@ export function parseLogInput(payload: unknown): LogInput {
     category === "music" ? normalizeOptionalText(record.albumTitle, 160) : "";
   const genres = category === "music" ? parseGenres(record.genres) : [];
   const credits = category === "music" ? parseCredits(record.credits) : [];
+  const visibility = parseVisibility(record.visibility);
 
   return {
     category,
@@ -92,7 +124,12 @@ export function parseLogInput(payload: unknown): LogInput {
     albumTitle,
     genres,
     credits,
+    visibility,
   };
+}
+
+export function parseVisibility(value: unknown): Visibility {
+  return value === "public" ? "public" : "private";
 }
 
 export async function listLogs(
@@ -227,6 +264,68 @@ export async function reorderFavoriteRanking(
   );
 }
 
+export async function getProfile(supabase: SupabaseClient) {
+  return callRpc<Profile>(supabase, "impasto_get_profile", {});
+}
+
+export async function setUsername(supabase: SupabaseClient, username: string) {
+  return callRpc<Profile>(supabase, "impasto_set_username", {
+    p_username: typeof username === "string" ? username : "",
+  });
+}
+
+export async function setDefaultVisibility(
+  supabase: SupabaseClient,
+  visibility: Visibility,
+) {
+  return callRpc<Profile>(supabase, "impasto_set_default_visibility", {
+    p_visibility: parseVisibility(visibility),
+  });
+}
+
+export async function listFeed(
+  supabase: SupabaseClient,
+  { scope = "all", search = "" }: { scope?: FeedScope; search?: string } = {},
+) {
+  return callRpc<FeedLog[]>(supabase, "impasto_list_feed", {
+    p_scope: scope,
+    p_search: normalizeLooseText(search),
+  });
+}
+
+export async function listFriends(supabase: SupabaseClient) {
+  return callRpc<FriendList>(supabase, "impasto_list_friends", {});
+}
+
+export async function sendFriendRequest(
+  supabase: SupabaseClient,
+  username: string,
+) {
+  return callRpc<FriendList>(supabase, "impasto_send_friend_request", {
+    p_username: typeof username === "string" ? username : "",
+  });
+}
+
+export async function respondFriendRequest(
+  supabase: SupabaseClient,
+  friendshipId: string,
+  accept: boolean,
+) {
+  return callRpc<FriendList>(supabase, "impasto_respond_friend_request", {
+    p_friendship_id: requireUuid(friendshipId),
+    p_accept: accept,
+  });
+}
+
+export async function removeFriend(
+  supabase: SupabaseClient,
+  friendshipId: string,
+) {
+  return callRpc<FriendList>(supabase, "impasto_remove_friend", {
+    p_friendship_id: requireUuid(friendshipId),
+  });
+}
+
 export function parseMusicKind(value: unknown): MusicKind {
   return value === "album" ? "album" : "song";
 }
@@ -241,6 +340,40 @@ async function callRpc<T>(
   if (error) {
     if (error.message.includes("Choose a reviewed song or album")) {
       throw new InputError("Choose a reviewed song or album.");
+    }
+
+    if (error.message.includes("INVALID_USERNAME")) {
+      throw new InputError(
+        "Usernames use 3–30 lowercase letters, numbers, periods, or underscores (no leading, trailing, or repeated periods).",
+      );
+    }
+
+    if (error.message.includes("USERNAME_TAKEN")) {
+      throw new InputError("That username is already taken.");
+    }
+
+    if (error.message.includes("USERNAME_COOLDOWN")) {
+      throw new InputError("You can only change your username once every 14 days.");
+    }
+
+    if (error.message.includes("USER_NOT_FOUND")) {
+      throw new InputError("No user found with that username.");
+    }
+
+    if (error.message.includes("CANNOT_FRIEND_SELF")) {
+      throw new InputError("You can't send a friend request to yourself.");
+    }
+
+    if (error.message.includes("ALREADY_FRIENDS")) {
+      throw new InputError("You're already friends.");
+    }
+
+    if (error.message.includes("REQUEST_EXISTS")) {
+      throw new InputError("A friend request is already pending.");
+    }
+
+    if (error.message.includes("REQUEST_NOT_FOUND")) {
+      throw new InputError("That friend request is no longer available.");
     }
 
     throw new DatabaseError(error.message);
@@ -260,6 +393,7 @@ function toDatabaseInput(input: LogInput) {
     album_title: input.albumTitle,
     genres: input.genres,
     credits: input.credits,
+    visibility: input.visibility,
     canonical_key: buildCanonicalKey(input),
   };
 }
