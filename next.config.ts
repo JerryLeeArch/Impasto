@@ -8,6 +8,12 @@ const scriptSrc = isDev
   ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
   : "script-src 'self' 'unsafe-inline'";
 
+// Local Supabase runs on http://127.0.0.1:54321 in dev; production talks to the
+// hosted project over https/wss. Allow the right origins per environment.
+const connectSrc = isDev
+  ? "connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321 http://localhost:54321 ws://localhost:54321 https://*.supabase.co wss://*.supabase.co"
+  : "connect-src 'self' https://*.supabase.co wss://*.supabase.co";
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
@@ -31,7 +37,9 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: https:",
               scriptSrc,
               "style-src 'self' 'unsafe-inline'",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              connectSrc,
+              // Spotify embed player (in-browser iframe).
+              "frame-src https://open.spotify.com",
             ].join("; "),
           },
         ],

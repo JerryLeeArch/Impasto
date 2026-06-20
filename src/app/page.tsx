@@ -68,6 +68,8 @@ type TasteLog = {
   artists: string[];
   credits: Credit[];
   visibility: Visibility;
+  coverUrl: string | null;
+  spotifyTrackId: string | null;
   createdAt: string;
   updatedAt: string;
   isMine?: boolean;
@@ -94,10 +96,27 @@ type MusicItemSummary = {
   musicKind: MusicKind;
   albumTitle: string;
   artists: string[];
+  coverUrl: string | null;
 };
 
 type FavoriteRankingEntry = MusicItemSummary & {
   rank: number;
+};
+
+type TrackMatch = {
+  spotifyTrackId: string;
+  title: string;
+  artists: string[];
+  albumTitle: string;
+  coverUrl: string | null;
+  releaseDate: string | null;
+  spotifyUrl: string;
+};
+
+type TrackMetadataResponse = {
+  matches: TrackMatch[];
+  credits: Credit[];
+  warnings: string[];
 };
 
 type FormState = {
@@ -112,6 +131,8 @@ type FormState = {
   artists: string;
   credits: CreditFormRow[];
   visibility: Visibility;
+  coverUrl: string;
+  spotifyTrackId: string;
 };
 
 type ComposerMode = "create" | "edit" | "layer";
@@ -169,6 +190,8 @@ function createEmptyForm(): FormState {
     artists: "",
     credits: createCreditRows(),
     visibility: "private",
+    coverUrl: "",
+    spotifyTrackId: "",
   };
 }
 
@@ -252,6 +275,15 @@ export default function Home() {
   const [isThemeReady, setIsThemeReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCreditIds, setExpandedCreditIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+  const [metadataMatches, setMetadataMatches] = useState<TrackMatch[]>([]);
+  const [metadataCredits, setMetadataCredits] = useState<Credit[]>([]);
+  const [metadataWarnings, setMetadataWarnings] = useState<string[]>([]);
+  const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [isMetadataPanelOpen, setIsMetadataPanelOpen] = useState(false);
+  const [expandedPlayerIds, setExpandedPlayerIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [isArtistInputFocused, setIsArtistInputFocused] = useState(false);
@@ -612,6 +644,7 @@ export default function Home() {
       visibility: profile?.defaultVisibility ?? "private",
     });
     setIsCreditsFormOpen(false);
+    resetMetadataLookup();
     setComposerMode("create");
     setIsComposerOpen(true);
   }
@@ -800,8 +833,11 @@ export default function Home() {
       artists: log.artists.join(", "),
       credits: createCreditRows(log.credits),
       visibility: log.visibility,
+      coverUrl: log.coverUrl ?? "",
+      spotifyTrackId: log.spotifyTrackId ?? "",
     });
     setIsCreditsFormOpen(false);
+    resetMetadataLookup();
     setComposerMode("edit");
     setIsComposerOpen(true);
   }
@@ -819,8 +855,11 @@ export default function Home() {
       artists: log.artists.join(", "),
       credits: createCreditRows(log.credits),
       visibility: log.visibility,
+      coverUrl: log.coverUrl ?? "",
+      spotifyTrackId: log.spotifyTrackId ?? "",
     });
     setIsCreditsFormOpen(log.credits.length > 0);
+    resetMetadataLookup();
     setComposerMode("layer");
     setIsComposerOpen(true);
   }
@@ -1190,6 +1229,96 @@ export default function Home() {
     });
   }
 
+  function togglePlayer(logId: string) {
+    setExpandedPlayerIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(logId)) {
+        next.delete(logId);
+      } else {
+        next.add(logId);
+      }
+
+      return next;
+    });
+  }
+
+  function resetMetadataLookup() {
+    setIsFetchingMetadata(false);
+    setMetadataMatches([]);
+    setMetadataCredits([]);
+    setMetadataWarnings([]);
+    setMetadataError(null);
+    setIsMetadataPanelOpen(false);
+  }
+
+  async function handleFetchMetadata() {
+    const title = form.title.trim();
+    if (!title || isFetchingMetadata) {
+      return;
+    }
+
+    setIsFetchingMetadata(true);
+    setMetadataError(null);
+    setMetadataWarnings([]);
+    setIsMetadataPanelOpen(true);
+
+    try {
+      const params = new URLSearchParams({ title });
+      const artist = splitArtists(form.artists)[0] ?? "";
+      if (artist) {
+        params.set("artist", artist);
+      }
+
+      const response = await fetch(`/api/metadata?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = (await response.json()) as TrackMetadataResponse & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not fetch metadata.");
+      }
+
+      setMetadataMatches(data.matches ?? []);
+      setMetadataCredits(data.credits ?? []);
+      setMetadataWarnings(data.warnings ?? []);
+    } catch (fetchError) {
+      setMetadataMatches([]);
+      setMetadataCredits([]);
+      setMetadataError(
+        fetchError instanceof Error
+          ? fetchError.message
+          : "Could not fetch metadata.",
+      );
+    } finally {
+      setIsFetchingMetadata(false);
+    }
+  }
+
+  function applyMetadataMatch(match: TrackMatch) {
+    setForm((current) => ({
+      ...current,
+      artists:
+        match.artists.length > 0 ? match.artists.join(", ") : current.artists,
+      albumTitle: match.albumTitle || current.albumTitle,
+      coverUrl: match.coverUrl ?? "",
+      spotifyTrackId: match.spotifyTrackId,
+      credits:
+        metadataCredits.length > 0
+          ? createCreditRows(
+              mergeCredits(creditRowsToCredits(current.credits), metadataCredits),
+            )
+          : current.credits,
+    }));
+    if (metadataCredits.length > 0) {
+      setIsCreditsFormOpen(true);
+    }
+    setMetadataMatches([]);
+    setIsMetadataPanelOpen(false);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -1206,6 +1335,8 @@ export default function Home() {
       genres: form.category === "music" ? splitGenres(form.genres) : [],
       credits: form.category === "music" ? creditRowsToCredits(form.credits) : [],
       visibility: form.visibility,
+      coverUrl: form.category === "music" ? form.coverUrl : "",
+      spotifyTrackId: form.category === "music" ? form.spotifyTrackId : "",
     };
 
     try {
@@ -2074,6 +2205,50 @@ export default function Home() {
                 ) : null}
               </div>
 
+              {!selectedAlbum && (log.coverUrl || log.spotifyTrackId) ? (
+                <div className="mt-4 flex items-center gap-3">
+                  {log.coverUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={log.coverUrl}
+                      alt={`Album art for ${log.title}`}
+                      width={56}
+                      height={56}
+                      className="h-14 w-14 shrink-0 rounded-md object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  {log.spotifyTrackId ? (
+                    <button
+                      type="button"
+                      onClick={() => togglePlayer(log.id)}
+                      aria-expanded={expandedPlayerIds.has(log.id)}
+                      className="app-card-action inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-3 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
+                    >
+                      <Music size={13} strokeWidth={1.8} />
+                      {expandedPlayerIds.has(log.id)
+                        ? "Hide player"
+                        : "Play on Spotify"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {log.spotifyTrackId && expandedPlayerIds.has(log.id) ? (
+                <div className="mt-3 overflow-hidden rounded-xl">
+                  <iframe
+                    src={`https://open.spotify.com/embed/track/${log.spotifyTrackId}`}
+                    width="100%"
+                    height={152}
+                    loading="lazy"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    title={`Spotify player for ${log.title}`}
+                    className="block w-full"
+                    style={{ border: 0 }}
+                  />
+                </div>
+              ) : null}
+
               {log.credits.length > 0 && expandedCreditIds.has(log.id) ? (
                 <div className="app-credit-panel mt-4 grid gap-2 rounded-lg px-3 py-3">
                   {log.credits.map((credit) => (
@@ -2247,6 +2422,108 @@ export default function Home() {
                   ) : null}
                 </div>
               </div>
+
+              {form.category === "music" ? (
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleFetchMetadata()}
+                    disabled={!form.title.trim() || isFetchingMetadata}
+                    className="app-credit-toggle flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isFetchingMetadata ? (
+                      <Loader2
+                        size={15}
+                        strokeWidth={1.8}
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <Music size={15} strokeWidth={1.8} />
+                    )}
+                    {isFetchingMetadata
+                      ? "Fetching from Spotify…"
+                      : "Fetch art & credits from Spotify"}
+                  </button>
+
+                  {metadataError ? (
+                    <p className="text-[12px] font-medium text-[#c9342f]">
+                      {metadataError}
+                    </p>
+                  ) : null}
+
+                  {metadataWarnings.map((warning) => (
+                    <p
+                      key={warning}
+                      className="text-[12px] font-medium text-[#9a6a00]"
+                    >
+                      {warning}
+                    </p>
+                  ))}
+
+                  {isMetadataPanelOpen && metadataMatches.length > 0 ? (
+                    <div className="app-credit-panel grid gap-1 rounded-lg border p-2">
+                      {metadataMatches.map((match) => (
+                        <button
+                          key={match.spotifyTrackId}
+                          type="button"
+                          onClick={() => applyMetadataMatch(match)}
+                          className="app-suggestion-button flex items-center gap-3 rounded-md px-2 py-2 text-left transition"
+                        >
+                          {match.coverUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={match.coverUrl}
+                              alt=""
+                              width={40}
+                              height={40}
+                              className="h-10 w-10 shrink-0 rounded object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[#f5f5f7] text-[#86868b]">
+                              <Music size={16} strokeWidth={1.7} />
+                            </span>
+                          )}
+                          <span className="min-w-0">
+                            <span className="block truncate text-[14px] font-semibold text-[#1d1d1f]">
+                              {match.title}
+                            </span>
+                            <span className="block truncate text-[12px] font-medium text-[#6e6e73]">
+                              {[match.artists.join(", "), match.albumTitle]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                      {metadataCredits.length > 0 ? (
+                        <p className="px-2 pt-1 text-[11px] font-medium text-[#6e6e73]">
+                          Picking a match also fills {metadataCredits.length}{" "}
+                          credit{metadataCredits.length === 1 ? "" : "s"} from
+                          Genius.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {isMetadataPanelOpen &&
+                  !isFetchingMetadata &&
+                  !metadataError &&
+                  metadataMatches.length === 0 ? (
+                    <p className="text-[12px] font-medium text-[#6e6e73]">
+                      No Spotify matches found.
+                    </p>
+                  ) : null}
+
+                  {form.spotifyTrackId ? (
+                    <p className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#6e6e73]">
+                      <Music size={12} strokeWidth={1.8} />
+                      Spotify track linked
+                      {form.coverUrl ? " · album art attached" : ""}.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               {form.category === "music" ? (
                 <div>
@@ -3041,6 +3318,37 @@ function creditRowsToCredits(rows: CreditFormRow[]) {
     }))
     .filter((credit) => credit.role && credit.names.length > 0)
     .slice(0, 16);
+}
+
+// Merge fetched credits into existing ones, unioning names within each role
+// (case-insensitive) so re-fetching never duplicates a person.
+function mergeCredits(existing: Credit[], incoming: Credit[]): Credit[] {
+  const byRole = new Map<string, Credit>();
+
+  for (const credit of [...existing, ...incoming]) {
+    const role = credit.role.replace(/\s+/g, " ").trim();
+    if (!role) {
+      continue;
+    }
+
+    const key = role.toLowerCase();
+    const current = byRole.get(key);
+
+    if (!current) {
+      byRole.set(key, { role, names: [...credit.names] });
+      continue;
+    }
+
+    const seen = new Set(current.names.map((name) => name.toLowerCase()));
+    for (const name of credit.names) {
+      if (!seen.has(name.toLowerCase())) {
+        current.names.push(name);
+        seen.add(name.toLowerCase());
+      }
+    }
+  }
+
+  return [...byRole.values()];
 }
 
 function splitCreditNames(value: string) {
