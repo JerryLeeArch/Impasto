@@ -1201,7 +1201,7 @@ export default function Home() {
       body: form.body,
       rating: form.rating,
       artists: splitArtists(form.artists),
-      musicKind: "song",
+      musicKind: form.category === "music" ? form.musicKind : "song",
       albumTitle: form.category === "music" ? form.albumTitle : "",
       genres: form.category === "music" ? splitGenres(form.genres) : [],
       credits: form.category === "music" ? creditRowsToCredits(form.credits) : [],
@@ -2059,6 +2059,16 @@ export default function Home() {
                       <Trash2 size={15} strokeWidth={1.7} />
                     </button>
                   </div>
+                ) : log.category === "music" ? (
+                  <button
+                    type="button"
+                    onClick={() => openLayerComposer(log)}
+                    className="app-card-action inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
+                    aria-label={`Create your log for ${log.title}`}
+                  >
+                    <Plus size={13} strokeWidth={1.8} />
+                    Impasto
+                  </button>
                 ) : null}
               </div>
 
