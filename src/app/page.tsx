@@ -2708,7 +2708,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={openFriends}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-[#d2d2d7]/80 px-4 text-[14px] font-semibold text-[#1d1d1f] transition hover:bg-[#f5f5f7]"
+                  className="app-secondary-button inline-flex h-9 items-center justify-center gap-2 rounded-full px-4 text-[14px] font-semibold transition"
                 >
                   <Users size={15} strokeWidth={1.8} />
                   Friends
@@ -2724,7 +2724,7 @@ export default function Home() {
                 <form action="/auth/signout" method="post">
                   <button
                     type="submit"
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-[#d2d2d7]/80 px-4 text-[14px] font-semibold text-[#1d1d1f] transition hover:bg-[#f5f5f7]"
+                    className="app-secondary-button inline-flex h-9 items-center justify-center gap-2 rounded-full px-4 text-[14px] font-semibold transition"
                   >
                     <LogOut size={15} strokeWidth={1.8} />
                     Sign out
@@ -2839,7 +2839,7 @@ export default function Home() {
                           onClick={() =>
                             void handleRespondFriend(friend.friendshipId, false)
                           }
-                          className="inline-flex h-8 items-center justify-center rounded-full border border-[#d2d2d7]/80 px-3 text-[12px] font-semibold text-[#1d1d1f] transition hover:bg-white disabled:opacity-60"
+                          className="inline-flex h-8 items-center justify-center rounded-full app-secondary-button px-3 text-[12px] font-semibold transition disabled:opacity-60"
                         >
                           Decline
                         </button>
@@ -2870,7 +2870,7 @@ export default function Home() {
                         onClick={() =>
                           void handleRemoveFriend(friend.friendshipId)
                         }
-                        className="inline-flex h-8 shrink-0 items-center justify-center rounded-full border border-[#d2d2d7]/80 px-3 text-[12px] font-semibold text-[#1d1d1f] transition hover:bg-white disabled:opacity-60"
+                        className="inline-flex h-8 shrink-0 items-center justify-center rounded-full app-secondary-button px-3 text-[12px] font-semibold transition disabled:opacity-60"
                       >
                         Cancel
                       </button>
