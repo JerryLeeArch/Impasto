@@ -53,6 +53,11 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-xs leading-5 text-[#86868b]">
           Your archive is private to your account.
         </p>
+        <p className="mt-3 text-center text-xs leading-5 text-[#86868b]">
+          <a href="/privacy" className="underline transition hover:text-[#1d1d1f]">
+            Privacy Policy
+          </a>
+        </p>
       </section>
     </main>
   );
