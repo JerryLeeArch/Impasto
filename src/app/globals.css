@@ -473,6 +473,11 @@ button:disabled {
   background: var(--app-panel-bg);
 }
 
+.app-friend-row {
+  background: var(--app-panel-bg);
+  border: 1px solid var(--app-border);
+}
+
 .app-floating-panel {
   background: var(--app-card-bg);
   border-color: var(--app-border);
