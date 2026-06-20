@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { InputError, parseLogInput, softDeleteLog, updateLog } from "@/lib/db";
+import { getAuthenticatedClient } from "@/lib/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +13,13 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
+    const auth = await getAuthenticatedClient();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
     const { id } = await context.params;
     const input = parseLogInput(await request.json());
-    const log = updateLog(id, input);
+    const log = await updateLog(auth.supabase, id, input);
 
     if (!log) {
       return NextResponse.json({ error: "Log not found." }, { status: 404 });
@@ -27,14 +32,22 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const { id } = await context.params;
-  const deleted = softDeleteLog(id);
+  try {
+    const auth = await getAuthenticatedClient();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+    const { id } = await context.params;
+    const deleted = await softDeleteLog(auth.supabase, id);
 
-  if (!deleted) {
-    return NextResponse.json({ error: "Log not found." }, { status: 404 });
+    if (!deleted) {
+      return NextResponse.json({ error: "Log not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return handleApiError(error);
   }
-
-  return NextResponse.json({ ok: true });
 }
 
 function handleApiError(error: unknown) {
