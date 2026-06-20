@@ -1437,10 +1437,10 @@ export default function Home() {
       data-theme={isDarkMode ? "dark" : "light"}
       className="app-shell min-h-screen bg-white text-[#1d1d1f]"
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-[104px] sm:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-[158px] sm:px-8 sm:pt-[104px]">
         <header className="app-header fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[24px] backdrop-blur-2xl">
-          <div className="mx-auto grid w-full max-w-[860px] grid-cols-[104px_minmax(0,1fr)_68px] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_68px] sm:gap-x-5 sm:px-8">
-            <div className="row-span-2 min-w-0 self-start">
+          <div className="mx-auto grid w-full max-w-[860px] grid-cols-[minmax(0,1fr)_36px_auto] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_68px] sm:gap-x-5 sm:px-8">
+            <div className="col-start-1 row-start-1 min-w-0 self-start sm:row-span-2">
               <button
                 type="button"
                 onClick={goHome}
@@ -1456,7 +1456,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="relative col-start-2 row-start-1">
+            <div className="relative col-span-3 col-start-1 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1">
               <Search
                 aria-hidden="true"
                 className="app-search-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#86868b]"
@@ -1493,13 +1493,13 @@ export default function Home() {
             <button
               type="button"
               onClick={openCreateComposer}
-              className="app-top-add-button col-start-3 row-start-1 inline-flex h-9 w-9 items-center justify-center self-center justify-self-end rounded-full border border-transparent bg-white text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition hover:shadow-[0_10px_30px_rgba(0,0,0,0.21)]"
+              className="app-top-add-button col-start-2 row-start-1 inline-flex h-9 w-9 items-center justify-center self-center justify-self-end rounded-full border border-transparent bg-white text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition hover:shadow-[0_10px_30px_rgba(0,0,0,0.21)] sm:col-start-3"
               aria-label="New log"
             >
               <Plus size={18} strokeWidth={2} />
             </button>
 
-            <div className="col-start-3 row-start-2 flex items-center justify-self-end gap-1.5 self-center">
+            <div className="col-start-3 row-start-1 flex items-center justify-self-end gap-1.5 self-center sm:row-start-2">
               <button
                 type="button"
                 onClick={openProfile}
@@ -1533,7 +1533,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="col-start-2 flex gap-4 overflow-x-auto pb-0.5">
+            <div className="col-span-3 col-start-1 row-start-3 flex gap-4 overflow-x-auto pb-0.5 sm:col-span-1 sm:col-start-2 sm:row-start-2">
               {categoryOptions.map((option) => {
                 const selected =
                   viewMode === "feed" && category === option.value;
