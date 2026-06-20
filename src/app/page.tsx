@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  ClipboardEvent as ReactClipboardEvent,
   DragEvent,
   FormEvent,
   KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
   useEffect,
   useMemo,
   useRef,
@@ -19,6 +21,7 @@ import {
   Image,
   ListOrdered,
   Loader2,
+  LogOut,
   Moon,
   Music,
   Pencil,
@@ -89,6 +92,7 @@ type FormState = {
 };
 
 type ComposerMode = "create" | "edit" | "layer";
+type CreditInputField = "role" | "names";
 
 type SelectedItem = {
   id: string;
@@ -202,6 +206,10 @@ export default function Home() {
     () => new Set(),
   );
   const [isArtistInputFocused, setIsArtistInputFocused] = useState(false);
+  const [activeCreditInput, setActiveCreditInput] = useState<{
+    rowId: string;
+    field: CreditInputField;
+  } | null>(null);
   const [rankingKind, setRankingKind] = useState<MusicKind>("song");
   const [isCandidatePickerOpen, setIsCandidatePickerOpen] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState("");
@@ -213,6 +221,15 @@ export default function Home() {
   const trimmedSearch = debouncedSearch.trim();
   const artistSearch = getActiveArtistQuery(form.artists);
   const debouncedArtistSearch = useDebouncedValue(artistSearch, 140);
+  const activeCreditRow = activeCreditInput
+    ? form.credits.find((row) => row.id === activeCreditInput.rowId) ?? null
+    : null;
+  const activeCreditQuery = activeCreditRow
+    ? activeCreditInput?.field === "names"
+      ? getActiveArtistQuery(activeCreditRow.names)
+      : activeCreditRow.role.trim()
+    : "";
+  const debouncedCreditQuery = useDebouncedValue(activeCreditQuery, 140);
   const debouncedCandidateSearch = useDebouncedValue(candidateSearch, 180);
 
   const {
@@ -305,6 +322,27 @@ export default function Home() {
     },
   });
 
+  const { data: creditArtistSuggestions = [] } = useQuery({
+    queryKey: ["artists", "credit", debouncedCreditQuery],
+    enabled:
+      isComposerOpen &&
+      activeCreditInput?.field === "names" &&
+      debouncedCreditQuery.length > 0,
+    queryFn: async () => {
+      const params = new URLSearchParams({ search: debouncedCreditQuery });
+      const response = await fetch(`/api/artists?${params.toString()}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load credit suggestions.");
+      }
+
+      const data = (await response.json()) as { artists: string[] };
+      return data.artists;
+    },
+  });
+
   const {
     data: ranking = [],
     isPending: isRankingPending,
@@ -373,6 +411,73 @@ export default function Home() {
   const visibleArtistSuggestions = artistSuggestions.filter(
     (artist) => !selectedArtistKeys.has(artist.toLowerCase()),
   );
+  const visibleCreditSuggestions = useMemo(() => {
+    const query = activeCreditQuery.toLowerCase();
+
+    if (!activeCreditInput || !activeCreditRow || !query) {
+      return [];
+    }
+
+    const values =
+      activeCreditInput.field === "role"
+        ? [
+            ...defaultCreditRoles,
+            ...logs.flatMap((log) => log.credits.map((credit) => credit.role)),
+          ]
+        : [
+            ...creditArtistSuggestions,
+            ...logs.flatMap((log) => [
+              ...log.artists,
+              ...log.credits.flatMap((credit) => credit.names),
+            ]),
+          ];
+    const selectedNames =
+      activeCreditInput.field === "names"
+        ? new Set(
+            activeCreditRow.names
+              .split(",")
+              .slice(0, -1)
+              .map((name) => name.trim().toLowerCase())
+              .filter(Boolean),
+          )
+        : new Set<string>();
+    const seen = new Set<string>();
+
+    return values
+      .filter((value) => {
+        const key = value.toLowerCase();
+
+        if (
+          !key ||
+          key === query ||
+          !key.includes(query) ||
+          seen.has(key) ||
+          selectedNames.has(key)
+        ) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => {
+        const leftStartsWith = left.toLowerCase().startsWith(query);
+        const rightStartsWith = right.toLowerCase().startsWith(query);
+
+        if (leftStartsWith !== rightStartsWith) {
+          return leftStartsWith ? -1 : 1;
+        }
+
+        return left.localeCompare(right);
+      })
+      .slice(0, 8);
+  }, [
+    activeCreditInput,
+    activeCreditQuery,
+    activeCreditRow,
+    creditArtistSuggestions,
+    logs,
+  ]);
   const rankedItemIds = useMemo(
     () => new Set(ranking.map((item) => item.id)),
     [ranking],
@@ -623,6 +728,121 @@ export default function Home() {
       ...current,
       credits: current.credits.filter((row) => row.id !== id),
     }));
+  }
+
+  function selectCreditSuggestion(suggestion: string) {
+    if (!activeCreditInput || !activeCreditRow) {
+      return;
+    }
+
+    updateCreditRow(activeCreditRow.id, {
+      [activeCreditInput.field]:
+        activeCreditInput.field === "names"
+          ? applyArtistSuggestion(activeCreditRow.names, suggestion)
+          : suggestion,
+    });
+    setActiveCreditInput(null);
+  }
+
+  function handleCreditKeyDown(
+    event: KeyboardEvent<HTMLInputElement>,
+    rowId: string,
+    field: CreditInputField,
+  ) {
+    if (event.key === "Escape") {
+      setActiveCreditInput(null);
+      return;
+    }
+
+    if (
+      activeCreditInput?.rowId === rowId &&
+      activeCreditInput.field === field &&
+      (event.key === "Enter" || event.key === "Tab") &&
+      visibleCreditSuggestions.length > 0
+    ) {
+      event.preventDefault();
+      selectCreditSuggestion(visibleCreditSuggestions[0]);
+    }
+  }
+
+  function handleCreditPaste(
+    event: ReactClipboardEvent<HTMLInputElement>,
+    row: CreditFormRow,
+    field: CreditInputField,
+  ) {
+    const pastedText = event.clipboardData.getData("text/plain");
+
+    if (!pastedText) {
+      return;
+    }
+
+    event.preventDefault();
+    const input = event.currentTarget;
+    const value = row[field];
+    const start = input.selectionStart ?? value.length;
+    const end = input.selectionEnd ?? start;
+    const normalizedPaste = pastedText.replace(
+      /\r?\n/g,
+      field === "names" ? ", " : " ",
+    );
+    const maxLength = field === "role" ? 48 : 1600;
+    const nextValue = `${value.slice(0, start)}${normalizedPaste}${value.slice(end)}`.slice(
+      0,
+      maxLength,
+    );
+    const nextCaret = Math.min(start + normalizedPaste.length, nextValue.length);
+
+    updateCreditRow(row.id, { [field]: nextValue });
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(nextCaret, nextCaret);
+    });
+  }
+
+  function handleNotesDoubleClick(event: ReactMouseEvent<HTMLTextAreaElement>) {
+    const textarea = event.currentTarget;
+    const value = textarea.value;
+    let index = textarea.selectionStart;
+
+    if (index >= value.length && value.length > 0) {
+      index = value.length - 1;
+    }
+
+    if (!isNotesWordCharacter(value[index]) && isNotesWordCharacter(value[index - 1])) {
+      index -= 1;
+    }
+
+    if (!isNotesWordCharacter(value[index])) {
+      return;
+    }
+
+    let start = index;
+    let end = index + 1;
+
+    while (start > 0 && isNotesWordCharacter(value[start - 1])) {
+      start -= 1;
+    }
+
+    while (end < value.length && isNotesWordCharacter(value[end])) {
+      end += 1;
+    }
+
+    textarea.setSelectionRange(start, end);
+  }
+
+  function handleNotesClick(event: ReactMouseEvent<HTMLTextAreaElement>) {
+    if (event.detail !== 3) {
+      return;
+    }
+
+    const textarea = event.currentTarget;
+    const value = textarea.value;
+    const caret = textarea.selectionStart;
+    const start = value.lastIndexOf("\n", Math.max(0, caret - 1)) + 1;
+    const nextNewline = value.indexOf("\n", caret);
+    const end = nextNewline === -1 ? value.length : nextNewline + 1;
+
+    textarea.setSelectionRange(start, end);
   }
 
   function selectArtistSuggestion(artist: string) {
@@ -904,7 +1124,7 @@ export default function Home() {
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-[104px] sm:px-8">
         <header className="app-header fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[24px] backdrop-blur-2xl">
-          <div className="mx-auto grid w-full max-w-[860px] grid-cols-[104px_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_36px] sm:gap-x-5 sm:px-8">
+          <div className="mx-auto grid w-full max-w-[860px] grid-cols-[104px_minmax(0,1fr)_68px] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_68px] sm:gap-x-5 sm:px-8">
             <div className="row-span-2 min-w-0 self-start">
               <button
                 type="button"
@@ -964,24 +1184,36 @@ export default function Home() {
               <Plus size={18} strokeWidth={2} />
             </button>
 
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isDarkMode}
-              aria-label={themeLabel}
-              title={themeLabel}
-              data-state={isDarkMode ? "dark" : "light"}
-              onClick={() => setIsDarkMode((current) => !current)}
-              className="app-theme-toggle col-start-3 row-start-2 justify-self-end self-center"
-            >
-              <span className="app-theme-toggle-thumb">
-                {isDarkMode ? (
-                  <Moon size={10} strokeWidth={2} />
-                ) : (
-                  <Sun size={10} strokeWidth={2} />
-                )}
-              </span>
-            </button>
+            <div className="col-start-3 row-start-2 flex items-center justify-self-end gap-1.5 self-center">
+              <form action="/auth/signout" method="post">
+                <button
+                  type="submit"
+                  className="app-icon-button inline-flex h-7 w-7 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                  aria-label="Sign out"
+                  title="Sign out"
+                >
+                  <LogOut size={13} strokeWidth={1.8} />
+                </button>
+              </form>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isDarkMode}
+                aria-label={themeLabel}
+                title={themeLabel}
+                data-state={isDarkMode ? "dark" : "light"}
+                onClick={() => setIsDarkMode((current) => !current)}
+                className="app-theme-toggle"
+              >
+                <span className="app-theme-toggle-thumb">
+                  {isDarkMode ? (
+                    <Moon size={10} strokeWidth={2} />
+                  ) : (
+                    <Sun size={10} strokeWidth={2} />
+                  )}
+                </span>
+              </button>
+            </div>
 
             <div className="col-start-2 flex gap-4 overflow-x-auto pb-0.5">
               {categoryOptions.map((option) => {
@@ -1671,32 +1903,106 @@ export default function Home() {
                       {form.credits.map((row) => (
                         <div
                           key={row.id}
-                          className="grid gap-2 sm:grid-cols-[minmax(120px,0.55fr)_minmax(0,1fr)_32px]"
+                          className="app-credit-row"
                         >
-                          <input
-                            value={row.role}
-                            onChange={(event) =>
-                              updateCreditRow(row.id, {
-                                role: event.target.value,
-                              })
-                            }
-                            className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
-                            placeholder="Role"
-                          />
-                          <input
-                            value={row.names}
-                            onChange={(event) =>
-                              updateCreditRow(row.id, {
-                                names: event.target.value,
-                              })
-                            }
-                            className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
-                            placeholder="Names, separated by commas"
-                          />
+                          <div className="app-credit-role relative">
+                            <input
+                              value={row.role}
+                              onChange={(event) =>
+                                updateCreditRow(row.id, {
+                                  role: event.target.value,
+                                })
+                              }
+                              onFocus={() =>
+                                setActiveCreditInput({
+                                  rowId: row.id,
+                                  field: "role",
+                                })
+                              }
+                              onBlur={() => setActiveCreditInput(null)}
+                              onKeyDown={(event) =>
+                                handleCreditKeyDown(event, row.id, "role")
+                              }
+                              onPaste={(event) =>
+                                handleCreditPaste(event, row, "role")
+                              }
+                              role="combobox"
+                              aria-autocomplete="list"
+                              aria-controls={creditSuggestionListId(
+                                row.id,
+                                "role",
+                              )}
+                              aria-expanded={
+                                activeCreditInput?.rowId === row.id &&
+                                activeCreditInput.field === "role" &&
+                                visibleCreditSuggestions.length > 0
+                              }
+                              autoComplete="off"
+                              maxLength={48}
+                              className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
+                              placeholder="Role"
+                            />
+                            {activeCreditInput?.rowId === row.id &&
+                            activeCreditInput.field === "role" &&
+                            visibleCreditSuggestions.length > 0 ? (
+                              <CreditSuggestionList
+                                id={creditSuggestionListId(row.id, "role")}
+                                suggestions={visibleCreditSuggestions}
+                                onSelect={selectCreditSuggestion}
+                              />
+                            ) : null}
+                          </div>
+                          <div className="app-credit-names relative">
+                            <input
+                              value={row.names}
+                              onChange={(event) =>
+                                updateCreditRow(row.id, {
+                                  names: event.target.value,
+                                })
+                              }
+                              onFocus={() =>
+                                setActiveCreditInput({
+                                  rowId: row.id,
+                                  field: "names",
+                                })
+                              }
+                              onBlur={() => setActiveCreditInput(null)}
+                              onKeyDown={(event) =>
+                                handleCreditKeyDown(event, row.id, "names")
+                              }
+                              onPaste={(event) =>
+                                handleCreditPaste(event, row, "names")
+                              }
+                              role="combobox"
+                              aria-autocomplete="list"
+                              aria-controls={creditSuggestionListId(
+                                row.id,
+                                "names",
+                              )}
+                              aria-expanded={
+                                activeCreditInput?.rowId === row.id &&
+                                activeCreditInput.field === "names" &&
+                                visibleCreditSuggestions.length > 0
+                              }
+                              autoComplete="off"
+                              maxLength={1600}
+                              className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
+                              placeholder="Names, separated by commas"
+                            />
+                            {activeCreditInput?.rowId === row.id &&
+                            activeCreditInput.field === "names" &&
+                            visibleCreditSuggestions.length > 0 ? (
+                              <CreditSuggestionList
+                                id={creditSuggestionListId(row.id, "names")}
+                                suggestions={visibleCreditSuggestions}
+                                onSelect={selectCreditSuggestion}
+                              />
+                            ) : null}
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeCreditRow(row.id)}
-                            className="app-icon-button inline-flex h-9 w-9 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                            className="app-credit-remove app-icon-button inline-flex h-9 w-9 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
                             aria-label={`Remove ${row.role || "credit"} row`}
                           >
                             <X size={14} strokeWidth={1.7} />
@@ -1767,6 +2073,8 @@ export default function Home() {
                       body: event.target.value,
                     }))
                   }
+                  onClick={handleNotesClick}
+                  onDoubleClick={handleNotesDoubleClick}
                   maxLength={5000}
                   required
                   rows={7}
@@ -1806,6 +2114,38 @@ export default function Home() {
         </div>
       ) : null}
     </main>
+  );
+}
+
+function CreditSuggestionList({
+  id,
+  suggestions,
+  onSelect,
+}: {
+  id: string;
+  suggestions: string[];
+  onSelect: (suggestion: string) => void;
+}) {
+  return (
+    <div
+      id={id}
+      className="app-floating-panel absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-lg border py-1"
+      role="listbox"
+    >
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion}
+          type="button"
+          role="option"
+          aria-selected="false"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onSelect(suggestion)}
+          className="app-suggestion-button block w-full px-3 py-2 text-left text-[13px] font-medium transition"
+        >
+          {suggestion}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -1926,6 +2266,14 @@ function applyArtistSuggestion(value: string, artist: string) {
   });
 
   return `${nextArtists.join(", ")}, `;
+}
+
+function isNotesWordCharacter(character: string | undefined) {
+  return Boolean(character && /[\p{L}\p{N}_'’-]/u.test(character));
+}
+
+function creditSuggestionListId(rowId: string, field: CreditInputField) {
+  return `credit-${rowId.replace(/[^a-zA-Z0-9_-]/g, "-")}-${field}-suggestions`;
 }
 
 function formatArtistLine(artists: string[]) {

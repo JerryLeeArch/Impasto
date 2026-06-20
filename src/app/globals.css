@@ -50,12 +50,33 @@ button:disabled {
 }
 
 ::selection {
-  background: rgba(24, 24, 27, 0.12);
+  background: rgba(120, 120, 128, 0.28);
+  color: inherit;
 }
 
 :root[data-theme="dark"] {
   --background: #000000;
   --foreground: #f5f5f7;
+}
+
+:root[data-theme="dark"] ::selection {
+  background: rgba(174, 174, 178, 0.42);
+  color: #ffffff;
+}
+
+.app-shell[data-theme="dark"] textarea::selection,
+.app-shell[data-theme="dark"] input::selection {
+  background-color: #5a5a5f;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+  text-shadow: none;
+}
+
+.app-shell[data-theme="dark"] textarea::-moz-selection,
+.app-shell[data-theme="dark"] input::-moz-selection {
+  background-color: #5a5a5f;
+  color: #ffffff;
+  text-shadow: none;
 }
 
 .app-shell {
@@ -470,6 +491,52 @@ button:disabled {
 .app-credit-panel {
   background: var(--app-panel-bg);
   border-color: var(--app-border);
+}
+
+.app-credit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.app-credit-role {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.app-credit-names {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.app-credit-remove {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+@media (min-width: 640px) {
+  .app-credit-row {
+    grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1fr) 36px;
+  }
+
+  .app-credit-role,
+  .app-credit-names,
+  .app-credit-remove {
+    grid-row: 1;
+  }
+
+  .app-credit-role {
+    grid-column: 1;
+  }
+
+  .app-credit-names {
+    grid-column: 2;
+  }
+
+  .app-credit-remove {
+    grid-column: 3;
+  }
 }
 
 .app-credit-toggle {

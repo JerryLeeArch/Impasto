@@ -7,27 +7,36 @@ import {
   removeFavoriteRankingItem,
   reorderFavoriteRanking,
 } from "@/lib/db";
+import { getAuthenticatedClient } from "@/lib/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const auth = await getAuthenticatedClient();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
   const { searchParams } = new URL(request.url);
   const musicKind = parseMusicKind(searchParams.get("musicKind"));
 
   return NextResponse.json({
-    ranking: listFavoriteRanking(musicKind),
+    ranking: await listFavoriteRanking(auth.supabase, musicKind),
   });
 }
 
 export async function POST(request: Request) {
   try {
+    const auth = await getAuthenticatedClient();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
     const payload = await request.json();
     const musicKind = parseMusicKind(readRecordValue(payload, "musicKind"));
     const itemId = readRequiredString(payload, "itemId");
 
     return NextResponse.json({
-      ranking: addFavoriteRankingItem(musicKind, itemId),
+      ranking: await addFavoriteRankingItem(auth.supabase, musicKind, itemId),
     });
   } catch (error) {
     return handleApiError(error);
@@ -36,12 +45,16 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const auth = await getAuthenticatedClient();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
     const payload = await request.json();
     const musicKind = parseMusicKind(readRecordValue(payload, "musicKind"));
     const itemIds = readStringArray(payload, "itemIds");
 
     return NextResponse.json({
-      ranking: reorderFavoriteRanking(musicKind, itemIds),
+      ranking: await reorderFavoriteRanking(auth.supabase, musicKind, itemIds),
     });
   } catch (error) {
     return handleApiError(error);
@@ -50,12 +63,20 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await getAuthenticatedClient();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
     const payload = await request.json();
     const musicKind = parseMusicKind(readRecordValue(payload, "musicKind"));
     const itemId = readRequiredString(payload, "itemId");
 
     return NextResponse.json({
-      ranking: removeFavoriteRankingItem(musicKind, itemId),
+      ranking: await removeFavoriteRankingItem(
+        auth.supabase,
+        musicKind,
+        itemId,
+      ),
     });
   } catch (error) {
     return handleApiError(error);
