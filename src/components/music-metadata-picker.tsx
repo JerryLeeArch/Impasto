@@ -233,9 +233,7 @@ export function MusicMetadataPicker({
                   type="button"
                   onClick={() => setSelectedMatch(match)}
                   aria-pressed={isSelected}
-                  className={`app-suggestion-button flex items-center gap-3 rounded-md border px-2 py-2 text-left transition ${
-                    isSelected ? "border-[#1d1d1f]" : "border-transparent"
-                  }`}
+                  className="app-metadata-result app-suggestion-button flex items-center gap-3 rounded-md border border-transparent px-2 py-2 text-left transition"
                 >
                   {match.coverUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -248,15 +246,15 @@ export function MusicMetadataPicker({
                       loading="lazy"
                     />
                   ) : (
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[#f5f5f7] text-[#86868b]">
+                    <span className="app-metadata-cover-placeholder flex h-10 w-10 shrink-0 items-center justify-center rounded">
                       <Music size={16} strokeWidth={1.7} />
                     </span>
                   )}
                   <span className="min-w-0">
-                    <span className="block truncate text-[14px] font-semibold text-[#1d1d1f]">
+                    <span className="app-metadata-title block truncate text-[14px] font-semibold">
                       {match.title}
                     </span>
-                    <span className="block truncate text-[12px] font-medium text-[#6e6e73]">
+                    <span className="app-metadata-muted block truncate text-[12px] font-medium">
                       {[
                         match.artists.join(", "),
                         match.albumTitle,
@@ -270,7 +268,7 @@ export function MusicMetadataPicker({
               );
             })
           ) : (
-            <p className="px-2 py-2 text-[12px] font-medium text-[#6e6e73]">
+            <p className="app-metadata-muted px-2 py-2 text-[12px] font-medium">
               No Spotify matches found. You can still search Genius directly.
             </p>
           )}
@@ -297,31 +295,34 @@ export function MusicMetadataPicker({
       {phase === "genius-review" ? (
         <div className="app-credit-panel grid gap-2 rounded-lg border p-3">
           <div>
-            <p className="text-[13px] font-semibold text-[#1d1d1f]">
+            <p className="app-metadata-title text-[13px] font-semibold">
               Confirm Genius credits
             </p>
-            <p className="mt-0.5 text-[11px] font-medium text-[#6e6e73]">
+            <p className="app-metadata-muted mt-0.5 text-[11px] font-medium">
               {geniusSource || "Current song"}
+              {credits.length > 0
+                ? ` · ${credits.length} credit${credits.length === 1 ? "" : "s"}`
+                : ""}
             </p>
           </div>
           {credits.length > 0 ? (
-            <div className="grid gap-1.5">
+            <div className="grid max-h-72 gap-1.5 overflow-y-auto overscroll-contain pr-1">
               {credits.map((credit) => (
                 <div
                   key={`${credit.role}-${credit.names.join("|")}`}
-                  className="rounded-md bg-[#f5f5f7] px-2.5 py-2"
+                  className="app-metadata-credit-card rounded-md px-2.5 py-2"
                 >
-                  <p className="text-[11px] font-semibold text-[#6e6e73]">
+                  <p className="app-metadata-muted text-[11px] font-semibold">
                     {credit.role}
                   </p>
-                  <p className="text-[13px] font-medium text-[#1d1d1f]">
+                  <p className="app-metadata-title text-[13px] font-medium">
                     {credit.names.join(", ")}
                   </p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-[12px] font-medium text-[#6e6e73]">
+            <p className="app-metadata-muted text-[12px] font-medium">
               No Genius credits found for this song.
             </p>
           )}
@@ -347,7 +348,7 @@ export function MusicMetadataPicker({
 
       {linkedTrackId ? (
         <div className="flex items-center justify-between gap-2">
-          <p className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#6e6e73]">
+          <p className="app-metadata-muted inline-flex items-center gap-1.5 text-[12px] font-medium">
             <Music size={12} strokeWidth={1.8} />
             Spotify track linked{hasCover ? " · album art attached" : ""}.
           </p>

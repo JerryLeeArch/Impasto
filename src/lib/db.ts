@@ -488,7 +488,7 @@ function parseCredits(value: unknown) {
     if (role && names.length > 0) credits.push({ role, names });
   }
 
-  return credits.slice(0, 16);
+  return credits.slice(0, 32);
 }
 
 function uniqueStrings(source: unknown[], maxLength: number, limit: number) {

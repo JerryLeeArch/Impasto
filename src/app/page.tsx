@@ -1243,7 +1243,7 @@ export default function Home() {
       ...current,
       credits: createCreditRows(
         mergeCredits(creditRowsToCredits(current.credits), fetchedCredits),
-      ),
+      ).filter((row) => row.names.trim()),
     }));
     setIsCreditsFormOpen(true);
   }
@@ -3171,7 +3171,7 @@ function creditRowsToCredits(rows: CreditFormRow[]) {
       names: splitCreditNames(row.names),
     }))
     .filter((credit) => credit.role && credit.names.length > 0)
-    .slice(0, 16);
+    .slice(0, 32);
 }
 
 // Merge fetched credits into existing ones, unioning names within each role
