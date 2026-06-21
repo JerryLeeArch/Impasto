@@ -3,6 +3,7 @@
 // in-browser embed player needs.
 
 import { MetadataConfigError, MetadataError, type TrackMatch } from "./types";
+import { fetchProvider } from "./request";
 
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SEARCH_URL = "https://api.spotify.com/v1/search";
@@ -12,6 +13,7 @@ type CachedToken = { token: string; expiresAt: number };
 // Module-level cache: a client-credentials token is valid ~1h and shared across
 // all users, so we reuse it until shortly before expiry.
 let cachedToken: CachedToken | null = null;
+let pendingToken: Promise<string> | null = null;
 
 async function getAppToken(): Promise<string> {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -27,8 +29,20 @@ async function getAppToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const response = await fetch(TOKEN_URL, {
+  if (!pendingToken) {
+    pendingToken = requestAppToken(clientId, clientSecret).finally(() => {
+      pendingToken = null;
+    });
+  }
+
+  return pendingToken;
+}
+
+async function requestAppToken(clientId: string, clientSecret: string) {
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString(
+    "base64",
+  );
+  const response = await fetchProvider("Spotify", TOKEN_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -59,7 +73,7 @@ async function getAppToken(): Promise<string> {
   return cachedToken.token;
 }
 
-type SpotifyImage = { url: string; width: number | null; height: number | null };
+type SpotifyImage = { url: string };
 
 type SpotifyTrack = {
   id: string;
@@ -70,7 +84,6 @@ type SpotifyTrack = {
     release_date?: string;
     images?: SpotifyImage[];
   };
-  external_urls?: { spotify?: string };
 };
 
 export async function searchSpotifyTracks(
@@ -82,7 +95,7 @@ export async function searchSpotifyTracks(
     return [];
   }
 
-  const token = await getAppToken();
+  let token = await getAppToken();
   // Field filters give markedly better matches than a bare keyword query.
   const query = artist.trim()
     ? `track:${title} artist:${artist}`
@@ -91,12 +104,14 @@ export async function searchSpotifyTracks(
   const url = new URL(SEARCH_URL);
   url.searchParams.set("q", query);
   url.searchParams.set("type", "track");
-  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 10)));
 
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+  let response = await fetchSpotifySearch(url, token);
+  if (response.status === 401) {
+    cachedToken = null;
+    token = await getAppToken();
+    response = await fetchSpotifySearch(url, token);
+  }
 
   if (!response.ok) {
     throw new MetadataError("Spotify search failed.");
@@ -106,7 +121,7 @@ export async function searchSpotifyTracks(
   const items = data.tracks?.items ?? [];
 
   return items
-    .filter((track) => track?.id)
+    .filter((track) => /^[A-Za-z0-9]{22}$/.test(track?.id ?? ""))
     .map((track) => ({
       spotifyTrackId: track.id,
       title: track.name,
@@ -114,10 +129,14 @@ export async function searchSpotifyTracks(
       albumTitle: track.album?.name ?? "",
       coverUrl: pickCoverImage(track.album?.images),
       releaseDate: track.album?.release_date ?? null,
-      spotifyUrl:
-        track.external_urls?.spotify ??
-        `https://open.spotify.com/track/${track.id}`,
     }));
+}
+
+function fetchSpotifySearch(url: URL, token: string) {
+  return fetchProvider("Spotify", url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
 }
 
 // Spotify returns images largest-first (typically 640 / 300 / 64). Prefer the
@@ -126,5 +145,16 @@ function pickCoverImage(images: SpotifyImage[] | undefined): string | null {
   if (!Array.isArray(images) || images.length === 0) {
     return null;
   }
-  return images[1]?.url ?? images[0]?.url ?? null;
+  const candidate = images[1]?.url ?? images[0]?.url;
+  if (!candidate) {
+    return null;
+  }
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "https:" && url.hostname === "i.scdn.co"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }

@@ -6,6 +6,8 @@ export type Credit = {
   names: string[];
 };
 
+export type MetadataProvider = "spotify" | "genius";
+
 export type TrackMatch = {
   spotifyTrackId: string;
   title: string;
@@ -13,14 +15,13 @@ export type TrackMatch = {
   albumTitle: string;
   coverUrl: string | null;
   releaseDate: string | null;
-  spotifyUrl: string;
 };
 
 export type TrackMetadata = {
   matches: TrackMatch[];
   credits: Credit[];
-  // Human-readable notes about partial failures (e.g. a provider not being
-  // configured yet). The endpoint still returns 200 so the UI can degrade.
+  // A provider configuration or network failure is returned as a warning so
+  // users can continue editing the log without external metadata.
   warnings: string[];
 };
 

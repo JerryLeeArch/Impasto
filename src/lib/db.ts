@@ -58,7 +58,6 @@ export type MusicItemSummary = {
   musicKind: MusicKind;
   albumTitle: string;
   artists: string[];
-  coverUrl: string | null;
 };
 
 export type FavoriteRankingEntry = MusicItemSummary & {
@@ -118,10 +117,13 @@ export function parseLogInput(payload: unknown): LogInput {
   const genres = category === "music" ? parseGenres(record.genres) : [];
   const credits = category === "music" ? parseCredits(record.credits) : [];
   const visibility = parseVisibility(record.visibility);
-  const coverUrl =
-    category === "music" ? normalizeCoverUrl(record.coverUrl) : "";
-  const spotifyTrackId =
-    category === "music" ? normalizeSpotifyTrackId(record.spotifyTrackId) : "";
+  const supportsTrackMetadata = category === "music" && musicKind === "song";
+  const coverUrl = supportsTrackMetadata
+    ? normalizeSpotifyCoverUrl(record.coverUrl)
+    : "";
+  const spotifyTrackId = supportsTrackMetadata
+    ? normalizeSpotifyTrackId(record.spotifyTrackId)
+    : "";
 
   return {
     category,
@@ -552,15 +554,18 @@ function normalizeSpotifyTrackId(value: unknown) {
   return /^[A-Za-z0-9]{22}$/.test(normalized) ? normalized : "";
 }
 
-// Only accept absolute https URLs for cover art (the CSP allows https images).
-function normalizeCoverUrl(value: unknown) {
+// Covers come from Spotify's image CDN. Restricting the host prevents a crafted
+// log from turning friends' feed views into requests to an arbitrary tracker.
+function normalizeSpotifyCoverUrl(value: unknown) {
   const normalized = normalizeLooseText(value).slice(0, 2048);
   if (!normalized) {
     return "";
   }
   try {
     const url = new URL(normalized);
-    return url.protocol === "https:" ? url.toString() : "";
+    return url.protocol === "https:" && url.hostname === "i.scdn.co"
+      ? url.toString()
+      : "";
   } catch {
     return "";
   }

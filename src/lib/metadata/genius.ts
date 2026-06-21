@@ -3,6 +3,7 @@
 // relationships onto Impasto's { role, names[] } credit model.
 
 import { MetadataConfigError, MetadataError, type Credit } from "./types";
+import { fetchProvider } from "./request";
 
 const SEARCH_URL = "https://api.genius.com/search";
 const SONG_URL = "https://api.genius.com/songs";
@@ -11,6 +12,8 @@ type GeniusArtist = { name?: string };
 
 type GeniusSong = {
   id: number;
+  title?: string;
+  title_with_featured?: string;
   primary_artist?: GeniusArtist;
   writer_artists?: GeniusArtist[];
   producer_artists?: GeniusArtist[];
@@ -42,7 +45,7 @@ export async function fetchGeniusCredits(
     return [];
   }
 
-  const response = await fetch(`${SONG_URL}/${songId}`, {
+  const response = await fetchProvider("Genius", `${SONG_URL}/${songId}`, {
     headers,
     cache: "no-store",
   });
@@ -60,9 +63,16 @@ async function findSongId(
   headers: { Authorization: string },
 ): Promise<number | null> {
   const url = new URL(SEARCH_URL);
-  url.searchParams.set("q", [title, artist].filter(Boolean).join(" ").trim());
+  const searchableTitle = stripFeatureCredit(title);
+  url.searchParams.set(
+    "q",
+    [searchableTitle, artist].filter(Boolean).join(" ").trim(),
+  );
 
-  const response = await fetch(url, { headers, cache: "no-store" });
+  const response = await fetchProvider("Genius", url, {
+    headers,
+    cache: "no-store",
+  });
   if (!response.ok) {
     throw new MetadataError("Genius search failed.");
   }
@@ -78,20 +88,62 @@ async function findSongId(
     return null;
   }
 
-  // Prefer a hit whose primary artist matches the supplied artist; otherwise
-  // fall back to Genius's own top result.
-  const normalizedArtist = artist.trim().toLowerCase();
+  // A Spotify title often includes a parenthesized feature credit that makes
+  // Genius search less accurate. Require the confirmed primary artist to match
+  // instead of silently attaching credits from Genius's unrelated top result.
+  const normalizedArtist = normalizeLookupText(artist);
+  const normalizedTitle = normalizeLookupText(searchableTitle);
+  if (!normalizedTitle) {
+    return null;
+  }
   if (normalizedArtist) {
     const matched = songs.find((song) => {
-      const primary = (song.primary_artist?.name ?? "").toLowerCase();
-      return primary.includes(normalizedArtist) || normalizedArtist.includes(primary);
+      const primary = normalizeLookupText(song.primary_artist?.name ?? "");
+      const songTitle = normalizeLookupText(
+        stripFeatureCredit(song.title ?? song.title_with_featured ?? ""),
+      );
+      const artistMatches =
+        primary === normalizedArtist ||
+        primary.includes(normalizedArtist) ||
+        normalizedArtist.includes(primary);
+      const titleMatches = matchesLookupText(songTitle, normalizedTitle);
+      return Boolean(primary && songTitle && artistMatches && titleMatches);
     });
     if (matched) {
       return matched.id;
     }
+    return null;
   }
 
-  return songs[0].id;
+  const titleMatch = songs.find((song) => {
+    const songTitle = normalizeLookupText(
+      stripFeatureCredit(song.title ?? song.title_with_featured ?? ""),
+    );
+    return matchesLookupText(songTitle, normalizedTitle);
+  });
+  return titleMatch?.id ?? null;
+}
+
+function stripFeatureCredit(title: string): string {
+  return title
+    .replace(/\s*[([]\s*(?:feat(?:uring)?\.?|ft\.?)\s+[^)\]]*[)\]]/gi, "")
+    .replace(/\s+[-–—]\s+(?:feat(?:uring)?\.?|ft\.?)\s+.+$/gi, "")
+    .trim();
+}
+
+function normalizeLookupText(value: string): string {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function matchesLookupText(left: string, right: string) {
+  return (
+    Boolean(left && right) &&
+    (left === right || left.includes(right) || right.includes(left))
+  );
 }
 
 function mapCredits(song: GeniusSong | undefined): Credit[] {
@@ -99,13 +151,34 @@ function mapCredits(song: GeniusSong | undefined): Credit[] {
     return [];
   }
 
-  const credits: Credit[] = [];
+  const credits = new Map<string, Credit>();
   const push = (role: string, artists: GeniusArtist[] | undefined) => {
-    const names = (artists ?? [])
-      .map((artist) => artist?.name?.trim())
-      .filter((name): name is string => Boolean(name));
-    if (names.length > 0) {
-      credits.push({ role, names });
+    const normalizedRole = role.replace(/\s+/g, " ").trim().slice(0, 48);
+    const names = [
+      ...new Set(
+        (artists ?? [])
+          .map((artist) => artist?.name?.trim())
+          .filter((name): name is string => Boolean(name))
+          .map((name) => name.slice(0, 96)),
+      ),
+    ].slice(0, 16);
+    if (!normalizedRole || names.length === 0) {
+      return;
+    }
+
+    const key = normalizedRole.toLowerCase();
+    const existing = credits.get(key);
+    if (!existing) {
+      credits.set(key, { role: normalizedRole, names });
+      return;
+    }
+
+    const seen = new Set(existing.names.map((name) => name.toLowerCase()));
+    for (const name of names) {
+      if (!seen.has(name.toLowerCase()) && existing.names.length < 16) {
+        existing.names.push(name);
+        seen.add(name.toLowerCase());
+      }
     }
   };
 
@@ -116,5 +189,5 @@ function mapCredits(song: GeniusSong | undefined): Credit[] {
     push(performance.label?.trim() || "Performance", performance.artists);
   }
 
-  return credits;
+  return [...credits.values()].slice(0, 16);
 }
