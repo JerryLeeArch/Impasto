@@ -8,6 +8,12 @@ import { fetchProvider } from "./request";
 const SEARCH_URL = "https://api.genius.com/search";
 const SONG_URL = "https://api.genius.com/songs";
 
+// Genius exposes music-video production and business metadata through
+// custom_performances too. Exclude only clearly non-musical roles; an
+// allow-list would silently discard uncommon instruments and specialist roles.
+const NON_MUSIC_CREDIT_ROLE_PATTERN =
+  /\b(?:video|visual|makeup|hair|wardrobe|stylist|choreograph|photograph|colorist|editor|publisher|publishing|distributor|label|copyright|phonographic|licens\w*|management|manager|marketing|artwork|cover art|creative director|production company|production supervisor|production designer)\b/i;
+
 type GeniusArtist = { name?: string };
 
 type GeniusSong = {
@@ -186,8 +192,19 @@ function mapCredits(song: GeniusSong | undefined): Credit[] {
   push("Produced By", song.producer_artists);
   push("Featuring", song.featured_artists);
   for (const performance of song.custom_performances ?? []) {
-    push(performance.label?.trim() || "Performance", performance.artists);
+    const role = performance.label?.trim() || "Performance";
+    if (!NON_MUSIC_CREDIT_ROLE_PATTERN.test(role)) {
+      push(normalizeMusicCreditRole(role), performance.artists);
+    }
   }
 
-  return [...credits.values()].slice(0, 16);
+  return [...credits.values()].slice(0, 32);
+}
+
+function normalizeMusicCreditRole(role: string) {
+  if (/^composer$/i.test(role)) return "Composed By";
+  if (/^songwriter$/i.test(role)) return "Written By";
+  if (/^arranger$/i.test(role)) return "Arranged By";
+  if (/^mixing engineer$/i.test(role)) return "Mix Engineer";
+  return role;
 }

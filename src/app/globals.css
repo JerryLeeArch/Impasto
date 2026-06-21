@@ -498,6 +498,27 @@ button:disabled {
   border-color: var(--app-border);
 }
 
+.app-metadata-result[aria-pressed="true"] {
+  border-color: var(--app-text);
+}
+
+.app-metadata-title {
+  color: var(--app-text);
+}
+
+.app-metadata-muted {
+  color: var(--app-muted);
+}
+
+.app-metadata-cover-placeholder,
+.app-metadata-credit-card {
+  background: var(--app-hover-bg);
+}
+
+.app-metadata-cover-placeholder {
+  color: var(--app-faint);
+}
+
 .app-credit-row {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) 36px;
