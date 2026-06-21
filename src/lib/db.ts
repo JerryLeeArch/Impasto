@@ -23,6 +23,8 @@ export type LogInput = {
   genres: string[];
   credits: Credit[];
   visibility: Visibility;
+  coverUrl: string;
+  spotifyTrackId: string;
 };
 
 export type TasteLog = {
@@ -38,6 +40,8 @@ export type TasteLog = {
   artists: string[];
   credits: Credit[];
   visibility: Visibility;
+  coverUrl: string | null;
+  spotifyTrackId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -113,6 +117,13 @@ export function parseLogInput(payload: unknown): LogInput {
   const genres = category === "music" ? parseGenres(record.genres) : [];
   const credits = category === "music" ? parseCredits(record.credits) : [];
   const visibility = parseVisibility(record.visibility);
+  const supportsTrackMetadata = category === "music" && musicKind === "song";
+  const coverUrl = supportsTrackMetadata
+    ? normalizeSpotifyCoverUrl(record.coverUrl)
+    : "";
+  const spotifyTrackId = supportsTrackMetadata
+    ? normalizeSpotifyTrackId(record.spotifyTrackId)
+    : "";
 
   return {
     category,
@@ -125,6 +136,8 @@ export function parseLogInput(payload: unknown): LogInput {
     genres,
     credits,
     visibility,
+    coverUrl,
+    spotifyTrackId,
   };
 }
 
@@ -394,6 +407,8 @@ function toDatabaseInput(input: LogInput) {
     genres: input.genres,
     credits: input.credits,
     visibility: input.visibility,
+    cover_url: input.coverUrl,
+    spotify_track_id: input.spotifyTrackId,
     canonical_key: buildCanonicalKey(input),
   };
 }
@@ -530,6 +545,30 @@ function normalizeOptionalText(value: unknown, maxLength: number) {
   return typeof value === "string"
     ? normalizeLooseText(value).slice(0, maxLength)
     : "";
+}
+
+// Spotify track ids are 22-character base62 strings. Reject anything else so a
+// malformed value never reaches the embed iframe.
+function normalizeSpotifyTrackId(value: unknown) {
+  const normalized = normalizeLooseText(value);
+  return /^[A-Za-z0-9]{22}$/.test(normalized) ? normalized : "";
+}
+
+// Covers come from Spotify's image CDN. Restricting the host prevents a crafted
+// log from turning friends' feed views into requests to an arbitrary tracker.
+function normalizeSpotifyCoverUrl(value: unknown) {
+  const normalized = normalizeLooseText(value).slice(0, 2048);
+  if (!normalized) {
+    return "";
+  }
+  try {
+    const url = new URL(normalized);
+    return url.protocol === "https:" && url.hostname === "i.scdn.co"
+      ? url.toString()
+      : "";
+  } catch {
+    return "";
+  }
 }
 
 function normalizeLooseText(value: unknown) {

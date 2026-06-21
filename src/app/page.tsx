@@ -35,6 +35,8 @@ import {
   type LucideIcon,
   X,
 } from "lucide-react";
+import { MusicMetadataPicker } from "@/components/music-metadata-picker";
+import type { TrackMatch } from "@/lib/metadata/types";
 
 type Category = "music" | "image" | "other";
 type CategoryFilter = Category | "all";
@@ -68,6 +70,8 @@ type TasteLog = {
   artists: string[];
   credits: Credit[];
   visibility: Visibility;
+  coverUrl: string | null;
+  spotifyTrackId: string | null;
   createdAt: string;
   updatedAt: string;
   isMine?: boolean;
@@ -112,6 +116,8 @@ type FormState = {
   artists: string;
   credits: CreditFormRow[];
   visibility: Visibility;
+  coverUrl: string;
+  spotifyTrackId: string;
 };
 
 type ComposerMode = "create" | "edit" | "layer";
@@ -169,6 +175,8 @@ function createEmptyForm(): FormState {
     artists: "",
     credits: createCreditRows(),
     visibility: "private",
+    coverUrl: "",
+    spotifyTrackId: "",
   };
 }
 
@@ -252,6 +260,9 @@ export default function Home() {
   const [isThemeReady, setIsThemeReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCreditIds, setExpandedCreditIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [expandedPlayerIds, setExpandedPlayerIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [isArtistInputFocused, setIsArtistInputFocused] = useState(false);
@@ -800,6 +811,8 @@ export default function Home() {
       artists: log.artists.join(", "),
       credits: createCreditRows(log.credits),
       visibility: log.visibility,
+      coverUrl: log.coverUrl ?? "",
+      spotifyTrackId: log.spotifyTrackId ?? "",
     });
     setIsCreditsFormOpen(false);
     setComposerMode("edit");
@@ -819,6 +832,8 @@ export default function Home() {
       artists: log.artists.join(", "),
       credits: createCreditRows(log.credits),
       visibility: log.visibility,
+      coverUrl: log.coverUrl ?? "",
+      spotifyTrackId: log.spotifyTrackId ?? "",
     });
     setIsCreditsFormOpen(log.credits.length > 0);
     setComposerMode("layer");
@@ -1190,6 +1205,49 @@ export default function Home() {
     });
   }
 
+  function togglePlayer(logId: string) {
+    setExpandedPlayerIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(logId)) {
+        next.delete(logId);
+      } else {
+        next.add(logId);
+      }
+
+      return next;
+    });
+  }
+
+  function applyTrackMetadata(match: TrackMatch) {
+    setForm((current) => ({
+      ...current,
+      title: match.title,
+      artists: match.artists.join(", "),
+      albumTitle: match.albumTitle,
+      coverUrl: match.coverUrl ?? "",
+      spotifyTrackId: match.spotifyTrackId,
+    }));
+  }
+
+  function clearTrackMetadata() {
+    setForm((current) => ({
+      ...current,
+      coverUrl: "",
+      spotifyTrackId: "",
+    }));
+  }
+
+  function applyFetchedCredits(fetchedCredits: Credit[]) {
+    setForm((current) => ({
+      ...current,
+      credits: createCreditRows(
+        mergeCredits(creditRowsToCredits(current.credits), fetchedCredits),
+      ),
+    }));
+    setIsCreditsFormOpen(true);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -1206,6 +1264,14 @@ export default function Home() {
       genres: form.category === "music" ? splitGenres(form.genres) : [],
       credits: form.category === "music" ? creditRowsToCredits(form.credits) : [],
       visibility: form.visibility,
+      coverUrl:
+        form.category === "music" && form.musicKind === "song"
+          ? form.coverUrl
+          : "",
+      spotifyTrackId:
+        form.category === "music" && form.musicKind === "song"
+          ? form.spotifyTrackId
+          : "",
     };
 
     try {
@@ -2074,6 +2140,53 @@ export default function Home() {
                 ) : null}
               </div>
 
+              {log.coverUrl ||
+              (log.musicKind === "song" && log.spotifyTrackId) ? (
+                <div className="mt-4 flex items-center gap-3">
+                  {log.coverUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={log.coverUrl}
+                      alt={`Album art for ${log.title}`}
+                      width={56}
+                      height={56}
+                      className="h-14 w-14 shrink-0 rounded-md object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  {log.musicKind === "song" && log.spotifyTrackId ? (
+                    <button
+                      type="button"
+                      onClick={() => togglePlayer(log.id)}
+                      aria-expanded={expandedPlayerIds.has(log.id)}
+                      className="app-card-action inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-3 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
+                    >
+                      <Music size={13} strokeWidth={1.8} />
+                      {expandedPlayerIds.has(log.id)
+                        ? "Hide player"
+                        : "Play on Spotify"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {log.musicKind === "song" &&
+              log.spotifyTrackId &&
+              expandedPlayerIds.has(log.id) ? (
+                <div className="mt-3 overflow-hidden rounded-xl">
+                  <iframe
+                    src={`https://open.spotify.com/embed/track/${log.spotifyTrackId}`}
+                    width="100%"
+                    height={152}
+                    loading="lazy"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    title={`Spotify player for ${log.title}`}
+                    className="block w-full"
+                    style={{ border: 0 }}
+                  />
+                </div>
+              ) : null}
+
               {log.credits.length > 0 && expandedCreditIds.has(log.id) ? (
                 <div className="app-credit-panel mt-4 grid gap-2 rounded-lg px-3 py-3">
                   {log.credits.map((credit) => (
@@ -2156,6 +2269,12 @@ export default function Home() {
                           setForm((current) => ({
                             ...current,
                             category: option.value,
+                            coverUrl:
+                              option.value === "music" ? current.coverUrl : "",
+                            spotifyTrackId:
+                              option.value === "music"
+                                ? current.spotifyTrackId
+                                : "",
                           }))
                         }
                         data-active={selected ? "true" : "false"}
@@ -2247,6 +2366,18 @@ export default function Home() {
                   ) : null}
                 </div>
               </div>
+
+              {form.category === "music" && form.musicKind === "song" ? (
+                <MusicMetadataPicker
+                  title={form.title}
+                  artists={splitArtists(form.artists)}
+                  linkedTrackId={form.spotifyTrackId}
+                  hasCover={Boolean(form.coverUrl)}
+                  onApplyTrack={applyTrackMetadata}
+                  onClearTrack={clearTrackMetadata}
+                  onApplyCredits={applyFetchedCredits}
+                />
+              ) : null}
 
               {form.category === "music" ? (
                 <div>
@@ -3041,6 +3172,37 @@ function creditRowsToCredits(rows: CreditFormRow[]) {
     }))
     .filter((credit) => credit.role && credit.names.length > 0)
     .slice(0, 16);
+}
+
+// Merge fetched credits into existing ones, unioning names within each role
+// (case-insensitive) so re-fetching never duplicates a person.
+function mergeCredits(existing: Credit[], incoming: Credit[]): Credit[] {
+  const byRole = new Map<string, Credit>();
+
+  for (const credit of [...existing, ...incoming]) {
+    const role = credit.role.replace(/\s+/g, " ").trim();
+    if (!role) {
+      continue;
+    }
+
+    const key = role.toLowerCase();
+    const current = byRole.get(key);
+
+    if (!current) {
+      byRole.set(key, { role, names: [...credit.names] });
+      continue;
+    }
+
+    const seen = new Set(current.names.map((name) => name.toLowerCase()));
+    for (const name of credit.names) {
+      if (!seen.has(name.toLowerCase())) {
+        current.names.push(name);
+        seen.add(name.toLowerCase());
+      }
+    }
+  }
+
+  return [...byRole.values()];
 }
 
 function splitCreditNames(value: string) {
