@@ -809,7 +809,7 @@ export default function Home() {
       body: log.body,
       rating: log.rating,
       artists: log.artists.join(", "),
-      credits: createCreditRows(log.credits),
+      credits: createCreditRows(log.credits, false),
       visibility: log.visibility,
       coverUrl: log.coverUrl ?? "",
       spotifyTrackId: log.spotifyTrackId ?? "",
@@ -830,7 +830,7 @@ export default function Home() {
       body: "",
       rating: log.rating,
       artists: log.artists.join(", "),
-      credits: createCreditRows(log.credits),
+      credits: createCreditRows(log.credits, false),
       visibility: log.visibility,
       coverUrl: log.coverUrl ?? "",
       spotifyTrackId: log.spotifyTrackId ?? "",
@@ -1243,9 +1243,10 @@ export default function Home() {
       ...current,
       credits: createCreditRows(
         mergeCredits(creditRowsToCredits(current.credits), fetchedCredits),
-      ).filter((row) => row.names.trim()),
+        false,
+      ),
     }));
-    setIsCreditsFormOpen(true);
+    setIsCreditsFormOpen(false);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2422,7 +2423,7 @@ export default function Home() {
                     }
                     maxLength={240}
                     className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
-                    placeholder="R&B, Art pop, Ambient"
+                    placeholder="R&B, Art pop, Ambient (optional)"
                   />
                 </div>
               ) : null}
@@ -3139,7 +3140,10 @@ function makeCreditRow(role: string, names: string): CreditFormRow {
   };
 }
 
-function createCreditRows(credits: Credit[] = []) {
+function createCreditRows(
+  credits: Credit[] = [],
+  includeEmptyDefaults = true,
+) {
   const usedCreditIndexes = new Set<number>();
   const rows = defaultCreditRoles.map((role) => {
     const index = credits.findIndex(
@@ -3161,7 +3165,9 @@ function createCreditRows(credits: Credit[] = []) {
     }
   });
 
-  return rows;
+  return includeEmptyDefaults
+    ? rows
+    : rows.filter((row) => row.names.trim().length > 0);
 }
 
 function creditRowsToCredits(rows: CreditFormRow[]) {
