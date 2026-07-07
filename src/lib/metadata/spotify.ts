@@ -78,6 +78,7 @@ type SpotifyImage = { url: string };
 type SpotifyTrack = {
   id: string;
   name: string;
+  explicit?: boolean;
   artists?: { name: string }[];
   album?: {
     name?: string;
@@ -129,6 +130,7 @@ export async function searchSpotifyTracks(
       albumTitle: track.album?.name ?? "",
       coverUrl: pickCoverImage(track.album?.images),
       releaseDate: track.album?.release_date ?? null,
+      explicit: Boolean(track.explicit),
     }));
 }
 

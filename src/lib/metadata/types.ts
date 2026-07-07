@@ -15,6 +15,7 @@ export type TrackMatch = {
   albumTitle: string;
   coverUrl: string | null;
   releaseDate: string | null;
+  explicit: boolean;
 };
 
 export type TrackMetadata = {
