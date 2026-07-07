@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Music, Trash2 } from "lucide-react";
+import { Disc3, Loader2, Music, Trash2 } from "lucide-react";
 import type {
   Credit,
   MetadataProvider,
@@ -251,18 +251,35 @@ export function MusicMetadataPicker({
                     </span>
                   )}
                   <span className="min-w-0">
-                    <span className="app-metadata-title block truncate text-[14px] font-semibold">
-                      {match.title}
+                    <span className="flex items-center gap-1.5">
+                      <span className="app-metadata-title truncate text-[14px] font-semibold">
+                        {match.title}
+                      </span>
+                      {match.explicit ? (
+                        <span
+                          title="Explicit"
+                          aria-label="Explicit"
+                          className="app-explicit-badge flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-[10px] font-bold leading-none"
+                        >
+                          E
+                        </span>
+                      ) : null}
                     </span>
                     <span className="app-metadata-muted block truncate text-[12px] font-medium">
-                      {[
-                        match.artists.join(", "),
-                        match.albumTitle,
-                        match.releaseDate,
-                      ]
+                      {[match.artists.join(", "), match.releaseDate]
                         .filter(Boolean)
                         .join(" · ")}
                     </span>
+                    {match.albumTitle ? (
+                      <span className="app-metadata-muted flex items-center gap-1 text-[12px] font-medium">
+                        <Disc3
+                          size={11}
+                          strokeWidth={1.8}
+                          className="shrink-0"
+                        />
+                        <span className="truncate">{match.albumTitle}</span>
+                      </span>
+                    ) : null}
                   </span>
                 </button>
               );

@@ -295,7 +295,7 @@ button:disabled {
 .app-shell[data-theme="dark"] .app-top-add-button:hover {
   box-shadow:
     0 14px 36px rgba(0, 0, 0, 0.72),
-    0 18px 38px -9px rgba(255, 255, 255, 1);
+    0 18px 38px -7px rgba(255, 255, 255, 1);
 }
 
 :root[data-theme="dark"] .app-shell .app-top-add-button,
@@ -631,4 +631,20 @@ button:disabled {
 
 .app-primary-button:hover {
   background: var(--app-primary-hover);
+}
+
+.app-player-bar {
+  background: var(--app-card-bg);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-control-shadow);
+}
+
+.app-explicit-badge {
+  background: var(--app-faint);
+  color: var(--app-bg);
+}
+
+.app-cover-fallback {
+  background: var(--app-panel-bg);
+  color: var(--app-faint);
 }

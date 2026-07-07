@@ -26,6 +26,7 @@ import {
   Moon,
   Music,
   Pencil,
+  Play,
   Plus,
   Search,
   Sun,
@@ -36,6 +37,10 @@ import {
   X,
 } from "lucide-react";
 import { MusicMetadataPicker } from "@/components/music-metadata-picker";
+import {
+  SpotifyPlayerBar,
+  type NowPlayingTrack,
+} from "@/components/spotify-player-bar";
 import type { TrackMatch } from "@/lib/metadata/types";
 
 type Category = "music" | "image" | "other";
@@ -262,9 +267,7 @@ export default function Home() {
   const [expandedCreditIds, setExpandedCreditIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [expandedPlayerIds, setExpandedPlayerIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [nowPlaying, setNowPlaying] = useState<NowPlayingTrack | null>(null);
   const [isArtistInputFocused, setIsArtistInputFocused] = useState(false);
   const [activeCreditInput, setActiveCreditInput] = useState<{
     rowId: string;
@@ -1205,18 +1208,8 @@ export default function Home() {
     });
   }
 
-  function togglePlayer(logId: string) {
-    setExpandedPlayerIds((current) => {
-      const next = new Set(current);
-
-      if (next.has(logId)) {
-        next.delete(logId);
-      } else {
-        next.add(logId);
-      }
-
-      return next;
-    });
+  function playTrack(trackId: string, title: string) {
+    setNowPlaying({ trackId, title });
   }
 
   function applyTrackMetadata(match: TrackMatch) {
@@ -1504,7 +1497,11 @@ export default function Home() {
       data-theme={isDarkMode ? "dark" : "light"}
       className="app-shell min-h-screen bg-white text-[#1d1d1f]"
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pb-16 pt-[158px] sm:px-8 sm:pt-[104px]">
+      <div
+        className={`mx-auto flex min-h-screen w-full max-w-[860px] flex-col px-5 pt-[158px] sm:px-8 sm:pt-[104px] ${
+          nowPlaying ? "pb-40" : "pb-16"
+        }`}
+      >
         <header className="app-header fixed inset-x-0 top-0 z-20 border-b border-[#d2d2d7]/30 bg-white/90 pb-2.5 pt-[24px] backdrop-blur-2xl">
           <div className="mx-auto grid w-full max-w-[860px] grid-cols-[minmax(0,1fr)_36px_auto] items-center gap-x-3 gap-y-2 px-5 sm:grid-cols-[128px_minmax(280px,1fr)_68px] sm:gap-x-5 sm:px-8">
             <div className="col-start-1 row-start-1 min-w-0 self-start sm:row-span-2">
@@ -2144,47 +2141,51 @@ export default function Home() {
               {log.coverUrl ||
               (log.musicKind === "song" && log.spotifyTrackId) ? (
                 <div className="mt-4 flex items-center gap-3">
-                  {log.coverUrl ? (
+                  {log.musicKind === "song" && log.spotifyTrackId ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        playTrack(log.spotifyTrackId as string, log.title)
+                      }
+                      className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                      aria-label={`Play ${log.title} on Spotify`}
+                    >
+                      {log.coverUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={log.coverUrl}
+                          alt={`Album art for ${log.title}`}
+                          width={80}
+                          height={80}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="app-cover-fallback flex h-full w-full items-center justify-center bg-[#f5f5f7] text-[#86868b]">
+                          <Music size={24} strokeWidth={1.6} />
+                        </span>
+                      )}
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
+                          <Play
+                            size={15}
+                            strokeWidth={2}
+                            className="ml-0.5 fill-current"
+                          />
+                        </span>
+                      </span>
+                    </button>
+                  ) : log.coverUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={log.coverUrl}
                       alt={`Album art for ${log.title}`}
-                      width={56}
-                      height={56}
-                      className="h-14 w-14 shrink-0 rounded-md object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                      width={80}
+                      height={80}
+                      className="h-20 w-20 shrink-0 rounded-md object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
                       loading="lazy"
                     />
                   ) : null}
-                  {log.musicKind === "song" && log.spotifyTrackId ? (
-                    <button
-                      type="button"
-                      onClick={() => togglePlayer(log.id)}
-                      aria-expanded={expandedPlayerIds.has(log.id)}
-                      className="app-card-action inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-3 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
-                    >
-                      <Music size={13} strokeWidth={1.8} />
-                      {expandedPlayerIds.has(log.id)
-                        ? "Hide player"
-                        : "Play on Spotify"}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {log.musicKind === "song" &&
-              log.spotifyTrackId &&
-              expandedPlayerIds.has(log.id) ? (
-                <div className="mt-3 overflow-hidden rounded-xl">
-                  <iframe
-                    src={`https://open.spotify.com/embed/track/${log.spotifyTrackId}`}
-                    width="100%"
-                    height={152}
-                    loading="lazy"
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    title={`Spotify player for ${log.title}`}
-                    className="block w-full"
-                    style={{ border: 0 }}
-                  />
                 </div>
               ) : null}
 
@@ -3057,6 +3058,13 @@ export default function Home() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {nowPlaying ? (
+        <SpotifyPlayerBar
+          track={nowPlaying}
+          onClose={() => setNowPlaying(null)}
+        />
       ) : null}
     </main>
   );
