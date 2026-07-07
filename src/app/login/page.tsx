@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Layers, Music, Users, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { NEXT_PATH_COOKIE } from "@/lib/auth-redirect";
 
 const features: { icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -37,8 +38,10 @@ export default function LoginPage() {
     const next = nextParam?.startsWith("/") && !nextParam.startsWith("//")
       ? nextParam
       : "/";
+    // The destination rides in a cookie: a query param on redirect_to makes
+    // the Supabase allowlist match fail and login bounces to the Site URL.
+    document.cookie = `${NEXT_PATH_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=600; samesite=lax`;
     const callback = new URL("/auth/callback", window.location.origin);
-    callback.searchParams.set("next", next);
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
