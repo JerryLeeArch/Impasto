@@ -10,7 +10,7 @@ const features: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Music,
     title: "Log what you love",
-    body: "Music, images, and more — with ratings, notes, and credits.",
+    body: "Songs and albums — with ratings, notes, and credits.",
   },
   {
     icon: Layers,

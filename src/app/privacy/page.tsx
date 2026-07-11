@@ -29,7 +29,7 @@ export default function PrivacyPage() {
 
         <p className="mt-6 text-[15px] leading-7 text-[#424245]">
           Impasto (&ldquo;Impasto&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is
-          a private taste log for music, images, and changing opinions, available
+          a private taste log for music and changing opinions, available
           at impasto.live. This Privacy Policy explains what information we
           collect, how we use it, and the choices you have. By using Impasto, you
           agree to this policy.

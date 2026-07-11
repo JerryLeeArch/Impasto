@@ -1,7 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type Category = "music" | "image" | "other";
-export type CategoryFilter = Category | "all";
 export type Rating = "like" | "neutral" | "dislike";
 export type MusicKind = "song" | "album";
 export type Visibility = "public" | "private";
@@ -13,7 +11,6 @@ export type Credit = {
 };
 
 export type LogInput = {
-  category: Category;
   title: string;
   body: string;
   rating: Rating;
@@ -30,7 +27,6 @@ export type LogInput = {
 export type TasteLog = {
   id: string;
   itemId: string;
-  category: Category;
   musicKind: MusicKind | null;
   albumTitle: string;
   genres: string[];
@@ -105,19 +101,16 @@ export function parseLogInput(payload: unknown): LogInput {
   }
 
   const record = payload as Record<string, unknown>;
-  const category = parseCategory(record.category);
   const rating = parseRating(record.rating);
   const title = normalizeRequiredText(record.title, "Title", 160);
   const body = normalizeRequiredMultilineText(record.body, "Notes", 5000);
-  const artists = category === "music" ? parseArtists(record.artists) : [];
-  const musicKind =
-    category === "music" ? parseMusicKind(record.musicKind) : "song";
-  const albumTitle =
-    category === "music" ? normalizeOptionalText(record.albumTitle, 160) : "";
-  const genres = category === "music" ? parseGenres(record.genres) : [];
-  const credits = category === "music" ? parseCredits(record.credits) : [];
+  const artists = parseArtists(record.artists);
+  const musicKind = parseMusicKind(record.musicKind);
+  const albumTitle = normalizeOptionalText(record.albumTitle, 160);
+  const genres = parseGenres(record.genres);
+  const credits = parseCredits(record.credits);
   const visibility = parseVisibility(record.visibility);
-  const supportsTrackMetadata = category === "music" && musicKind === "song";
+  const supportsTrackMetadata = musicKind === "song";
   const coverUrl = supportsTrackMetadata
     ? normalizeSpotifyCoverUrl(record.coverUrl)
     : "";
@@ -126,7 +119,6 @@ export function parseLogInput(payload: unknown): LogInput {
     : "";
 
   return {
-    category,
     title,
     body,
     rating,
@@ -148,19 +140,17 @@ export function parseVisibility(value: unknown): Visibility {
 export async function listLogs(
   supabase: SupabaseClient,
   {
-    category = "all",
     itemId = "",
     albumTitle = "",
     search = "",
   }: {
-    category?: CategoryFilter;
     itemId?: string;
     albumTitle?: string;
     search?: string;
   } = {},
 ) {
   return callRpc<TasteLog[]>(supabase, "impasto_list_logs", {
-    p_category: category,
+    p_category: "all",
     p_item_id: normalizeOptionalUuid(itemId),
     p_album_title: normalizeLooseText(albumTitle),
     p_search: normalizeLooseText(search),
@@ -397,7 +387,7 @@ async function callRpc<T>(
 
 function toDatabaseInput(input: LogInput) {
   return {
-    category: input.category,
+    category: "music",
     title: input.title,
     body: input.body,
     rating: input.rating,
@@ -420,19 +410,9 @@ function buildCanonicalKey(input: LogInput) {
     .sort()
     .join(",");
 
-  return input.category === "music"
-    ? [input.category, input.musicKind, normalizedTitle, normalizedArtists].join(
-        ":",
-      )
-    : [input.category, normalizedTitle, normalizedArtists].join(":");
-}
-
-function parseCategory(value: unknown): Category {
-  if (value === "music" || value === "image" || value === "other") {
-    return value;
-  }
-
-  throw new InputError("Choose a valid category.");
+  return ["music", input.musicKind, normalizedTitle, normalizedArtists].join(
+    ":",
+  );
 }
 
 function parseRating(value: unknown): Rating {
