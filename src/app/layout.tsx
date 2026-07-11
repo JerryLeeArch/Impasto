@@ -7,7 +7,7 @@ const themeCookieName = "impasto-theme";
 
 export const metadata: Metadata = {
   title: "Impasto",
-  description: "A private taste log for music, images, and changing opinions.",
+  description: "A private taste log for music and changing opinions.",
 };
 
 const themeScript = `

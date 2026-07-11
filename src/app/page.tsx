@@ -18,7 +18,6 @@ import {
   ChevronDown,
   Disc3,
   GripVertical,
-  Image,
   ListOrdered,
   Loader2,
   Lock,
@@ -43,8 +42,6 @@ import {
 } from "@/components/spotify-player-bar";
 import type { TrackMatch } from "@/lib/metadata/types";
 
-type Category = "music" | "image" | "other";
-type CategoryFilter = Category | "all";
 type Rating = "like" | "neutral" | "dislike";
 type MusicKind = "song" | "album";
 type Visibility = "public" | "private";
@@ -65,7 +62,6 @@ type CreditFormRow = {
 type TasteLog = {
   id: string;
   itemId: string;
-  category: Category;
   musicKind: MusicKind | null;
   albumTitle: string;
   genres: string[];
@@ -111,7 +107,6 @@ type FavoriteRankingEntry = MusicItemSummary & {
 
 type FormState = {
   id: string | null;
-  category: Category;
   musicKind: MusicKind;
   albumTitle: string;
   genres: string;
@@ -131,7 +126,6 @@ type CreditInputField = "role" | "names";
 type SelectedItem = {
   id: string;
   title: string;
-  category: Category;
   musicKind: MusicKind | null;
   albumTitle: string;
   artists: string[];
@@ -170,7 +164,6 @@ const defaultCreditRoles = [
 function createEmptyForm(): FormState {
   return {
     id: null,
-    category: "music",
     musicKind: "song",
     albumTitle: "",
     genres: "",
@@ -184,19 +177,6 @@ function createEmptyForm(): FormState {
     spotifyTrackId: "",
   };
 }
-
-const categoryOptions: { value: CategoryFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "music", label: "Music" },
-  { value: "image", label: "Images" },
-  { value: "other", label: "Other" },
-];
-
-const composeCategoryOptions: { value: Category; label: string }[] = [
-  { value: "music", label: "Music" },
-  { value: "image", label: "Image" },
-  { value: "other", label: "Other" },
-];
 
 const visibilityOptions: {
   value: Visibility;
@@ -251,7 +231,6 @@ export default function Home() {
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>("feed");
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<CategoryFilter>("all");
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<SelectedAlbum | null>(
     null,
@@ -374,12 +353,6 @@ export default function Home() {
   });
 
   const isDrilldown = Boolean(selectedItem || selectedAlbum);
-  const displayLogs = useMemo(() => {
-    if (isDrilldown || category === "all") {
-      return logs;
-    }
-    return logs.filter((log) => log.category === category);
-  }, [logs, isDrilldown, category]);
 
   const { data: friendList } = useQuery<FriendList>({
     queryKey: ["friends"],
@@ -426,7 +399,6 @@ export default function Home() {
     queryKey: ["artists", debouncedArtistSearch],
     enabled:
       isComposerOpen &&
-      form.category === "music" &&
       isArtistInputFocused &&
       debouncedArtistSearch.length > 0,
     queryFn: async () => {
@@ -613,7 +585,7 @@ export default function Home() {
   const showInitialLoading =
     viewMode === "feed" && isPending && logs.length === 0;
   const showEmptyState =
-    viewMode === "feed" && !isPending && !isError && displayLogs.length === 0;
+    viewMode === "feed" && !isPending && !isError && logs.length === 0;
   const themeLabel = isDarkMode ? "Switch to light mode" : "Switch to dark mode";
   const rankingTitle =
     rankingKind === "song" ? "My Favorite Songs" : "My Favorite Albums";
@@ -804,7 +776,6 @@ export default function Home() {
   function openEditComposer(log: TasteLog) {
     setForm({
       id: log.id,
-      category: log.category,
       musicKind: log.musicKind ?? "song",
       albumTitle: log.albumTitle,
       genres: log.genres.join(", "),
@@ -825,7 +796,6 @@ export default function Home() {
   function openLayerComposer(log: TasteLog) {
     setForm({
       id: null,
-      category: log.category,
       musicKind: log.musicKind ?? "song",
       albumTitle: log.albumTitle,
       genres: log.genres.join(", "),
@@ -847,14 +817,13 @@ export default function Home() {
     const item: SelectedItem = {
       id: log.itemId,
       title: log.title,
-      category: log.category,
       musicKind: log.musicKind,
       albumTitle: log.albumTitle,
       artists: log.artists,
     };
 
     window.history.replaceState(
-      { view: "feed", search, category, scrollY: window.scrollY },
+      { view: "feed", search, scrollY: window.scrollY },
       "",
     );
     window.history.pushState({ view: "layers", item }, "");
@@ -862,7 +831,6 @@ export default function Home() {
     setSelectedItem(item);
     setSelectedAlbum(null);
     setSearch("");
-    setCategory("all");
     window.scrollTo(0, 0);
   }
 
@@ -879,7 +847,7 @@ export default function Home() {
     };
 
     window.history.replaceState(
-      { view: "feed", search, category, scrollY: window.scrollY },
+      { view: "feed", search, scrollY: window.scrollY },
       "",
     );
     window.history.pushState({ view: "album", album }, "");
@@ -887,7 +855,6 @@ export default function Home() {
     setSelectedItem(null);
     setSelectedAlbum(album);
     setSearch("");
-    setCategory("all");
     window.scrollTo(0, 0);
   }
 
@@ -905,7 +872,6 @@ export default function Home() {
         | {
             view?: string;
             search?: string;
-            category?: CategoryFilter;
             scrollY?: number;
             item?: SelectedItem;
             album?: SelectedAlbum;
@@ -917,7 +883,6 @@ export default function Home() {
         setSelectedItem(state.item);
         setSelectedAlbum(null);
         setSearch("");
-        setCategory("all");
         window.scrollTo(0, 0);
         return;
       }
@@ -927,7 +892,6 @@ export default function Home() {
         setSelectedItem(null);
         setSelectedAlbum(state.album);
         setSearch("");
-        setCategory("all");
         window.scrollTo(0, 0);
         return;
       }
@@ -938,7 +902,6 @@ export default function Home() {
 
       if (state?.view === "feed") {
         setSearch(state.search ?? "");
-        setCategory(state.category ?? "all");
         pendingScrollRef.current = state.scrollY ?? 0;
       }
     }
@@ -994,7 +957,6 @@ export default function Home() {
     setViewMode("feed");
     setSelectedItem(null);
     setSelectedAlbum(null);
-    setCategory("all");
     setSearch(artist);
   }
 
@@ -1003,7 +965,6 @@ export default function Home() {
     setSelectedItem(null);
     setSelectedAlbum(null);
     setSearch("");
-    setCategory("all");
     setError(null);
     setIsCandidatePickerOpen(false);
   }
@@ -1248,24 +1209,17 @@ export default function Home() {
     setError(null);
 
     const payload = {
-      category: form.category,
       title: form.title,
       body: form.body,
       rating: form.rating,
       artists: splitArtists(form.artists),
-      musicKind: form.category === "music" ? form.musicKind : "song",
-      albumTitle: form.category === "music" ? form.albumTitle : "",
-      genres: form.category === "music" ? splitGenres(form.genres) : [],
-      credits: form.category === "music" ? creditRowsToCredits(form.credits) : [],
+      musicKind: form.musicKind,
+      albumTitle: form.albumTitle,
+      genres: splitGenres(form.genres),
+      credits: creditRowsToCredits(form.credits),
       visibility: form.visibility,
-      coverUrl:
-        form.category === "music" && form.musicKind === "song"
-          ? form.coverUrl
-          : "",
-      spotifyTrackId:
-        form.category === "music" && form.musicKind === "song"
-          ? form.spotifyTrackId
-          : "",
+      coverUrl: form.musicKind === "song" ? form.coverUrl : "",
+      spotifyTrackId: form.musicKind === "song" ? form.spotifyTrackId : "",
     };
 
     try {
@@ -1480,12 +1434,11 @@ export default function Home() {
     setSelectedItem(null);
     setSelectedAlbum(null);
     setSearch("");
-    setCategory("all");
     setError(null);
     setIsCandidatePickerOpen(false);
     setCandidateSearch("");
     window.history.replaceState(
-      { view: "feed", search: "", category: "all", scrollY: 0 },
+      { view: "feed", search: "", scrollY: 0 },
       "",
       window.location.pathname,
     );
@@ -1598,29 +1551,20 @@ export default function Home() {
             </div>
 
             <div className="col-span-3 col-start-1 row-start-3 flex gap-4 overflow-x-auto pb-0.5 sm:col-span-1 sm:col-start-2 sm:row-start-2">
-              {categoryOptions.map((option) => {
-                const selected =
-                  viewMode === "feed" && category === option.value;
-
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => {
-                      setViewMode("feed");
-                      setSelectedItem(null);
-                      setSelectedAlbum(null);
-                      setCategory(option.value);
-                    }}
-                    data-active={selected ? "true" : "false"}
-                    className={`app-tab h-7 shrink-0 text-[12px] transition ${
-                      selected ? "font-semibold" : "font-medium"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("feed");
+                  setSelectedItem(null);
+                  setSelectedAlbum(null);
+                }}
+                data-active={viewMode === "feed" ? "true" : "false"}
+                className={`app-tab h-7 shrink-0 text-[12px] transition ${
+                  viewMode === "feed" ? "font-semibold" : "font-medium"
+                }`}
+              >
+                Feed
+              </button>
               <button
                 type="button"
                 onClick={openRankingView}
@@ -1979,7 +1923,7 @@ export default function Home() {
             </div>
           ) : null}
 
-          {viewMode === "feed" ? displayLogs.map((log) => {
+          {viewMode === "feed" ? logs.map((log) => {
             const isMine = log.isMine !== false;
             const ownerLabel = isMine
               ? null
@@ -2048,7 +1992,6 @@ export default function Home() {
                       selectedItem ? "" : "mt-2"
                     }`}
                   >
-                    <CategoryBadge category={log.category} />
                     <RatingBadge rating={log.rating} />
                     {isMine ? (
                       <span
@@ -2125,7 +2068,7 @@ export default function Home() {
                       <Trash2 size={15} strokeWidth={1.7} />
                     </button>
                   </div>
-                ) : log.category === "music" ? (
+                ) : (
                   <button
                     type="button"
                     onClick={() => openLayerComposer(log)}
@@ -2135,7 +2078,7 @@ export default function Home() {
                     <Plus size={13} strokeWidth={1.8} />
                     Impasto
                   </button>
-                ) : null}
+                )}
               </div>
 
               {log.coverUrl ||
@@ -2254,47 +2197,6 @@ export default function Home() {
             <div className="grid gap-3">
               <div>
                 <label
-                  htmlFor="category"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
-                >
-                  Category
-                </label>
-                <div className="grid grid-cols-3 gap-2" id="category">
-                  {composeCategoryOptions.map((option) => {
-                    const selected = form.category === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() =>
-                          setForm((current) => ({
-                            ...current,
-                            category: option.value,
-                            coverUrl:
-                              option.value === "music" ? current.coverUrl : "",
-                            spotifyTrackId:
-                              option.value === "music"
-                                ? current.spotifyTrackId
-                                : "",
-                          }))
-                        }
-                        data-active={selected ? "true" : "false"}
-                        className={`app-choice h-9 rounded-full border text-[13px] font-semibold transition ${
-                          selected
-                            ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
-                            : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label
                   htmlFor="title"
                   className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
                 >
@@ -2312,20 +2214,11 @@ export default function Home() {
                   maxLength={160}
                   required
                   className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
-                  placeholder={
-                    form.category === "music" ? "Song title" : "Image or idea"
-                  }
+                  placeholder="Song title"
                 />
               </div>
 
-              <div
-                aria-hidden={form.category !== "music"}
-                className={
-                  form.category === "music"
-                    ? ""
-                    : "pointer-events-none invisible select-none"
-                }
-              >
+              <div>
                 <label
                   htmlFor="artists"
                   className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
@@ -2345,9 +2238,7 @@ export default function Home() {
                     onFocus={() => setIsArtistInputFocused(true)}
                     onBlur={() => setIsArtistInputFocused(false)}
                     onKeyDown={handleArtistKeyDown}
-                    disabled={form.category !== "music"}
-                    tabIndex={form.category === "music" ? undefined : -1}
-                    className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35 disabled:opacity-100"
+                    className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
                     placeholder="Frank Ocean, James Blake"
                   />
                   {isArtistInputFocused &&
@@ -2369,7 +2260,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {form.category === "music" && form.musicKind === "song" ? (
+              {form.musicKind === "song" ? (
                 <MusicMetadataPicker
                   title={form.title}
                   artists={splitArtists(form.artists)}
@@ -2381,216 +2272,210 @@ export default function Home() {
                 />
               ) : null}
 
-              {form.category === "music" ? (
-                <div>
-                  <label
-                    htmlFor="album"
-                    className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
-                  >
-                    Album
-                  </label>
-                  <input
-                    id="album"
-                    value={form.albumTitle}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        albumTitle: event.target.value,
-                      }))
-                    }
-                    maxLength={160}
-                    className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
-                    placeholder="Album title (optional)"
-                  />
-                </div>
-              ) : null}
+              <div>
+                <label
+                  htmlFor="album"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Album
+                </label>
+                <input
+                  id="album"
+                  value={form.albumTitle}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      albumTitle: event.target.value,
+                    }))
+                  }
+                  maxLength={160}
+                  className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  placeholder="Album title (optional)"
+                />
+              </div>
 
-              {form.category === "music" ? (
-                <div>
-                  <label
-                    htmlFor="genres"
-                    className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
-                  >
-                    Genres
-                  </label>
-                  <input
-                    id="genres"
-                    value={form.genres}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        genres: event.target.value,
-                      }))
-                    }
-                    maxLength={240}
-                    className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
-                    placeholder="R&B, Art pop, Ambient (optional)"
-                  />
-                </div>
-              ) : null}
+              <div>
+                <label
+                  htmlFor="genres"
+                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                >
+                  Genres
+                </label>
+                <input
+                  id="genres"
+                  value={form.genres}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      genres: event.target.value,
+                    }))
+                  }
+                  maxLength={240}
+                  className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  placeholder="R&B, Art pop, Ambient (optional)"
+                />
+              </div>
 
-              {form.category === "music" ? (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setIsCreditsFormOpen((current) => !current)}
-                    className="app-credit-toggle flex h-10 w-full items-center justify-between rounded-lg border px-3 text-left text-[13px] font-semibold transition"
-                    aria-expanded={isCreditsFormOpen}
-                  >
-                    <span>Credits</span>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="app-muted text-[12px] font-medium text-[#6e6e73]">
-                        {creditRowsToCredits(form.credits).length} filled
-                      </span>
-                      <ChevronDown
-                        data-open={isCreditsFormOpen ? "true" : "false"}
-                        className="app-chevron"
-                        size={15}
-                        strokeWidth={1.8}
-                      />
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIsCreditsFormOpen((current) => !current)}
+                  className="app-credit-toggle flex h-10 w-full items-center justify-between rounded-lg border px-3 text-left text-[13px] font-semibold transition"
+                  aria-expanded={isCreditsFormOpen}
+                >
+                  <span>Credits</span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="app-muted text-[12px] font-medium text-[#6e6e73]">
+                      {creditRowsToCredits(form.credits).length} filled
                     </span>
-                  </button>
+                    <ChevronDown
+                      data-open={isCreditsFormOpen ? "true" : "false"}
+                      className="app-chevron"
+                      size={15}
+                      strokeWidth={1.8}
+                    />
+                  </span>
+                </button>
 
-                  {isCreditsFormOpen ? (
-                    <div className="app-credit-panel mt-2 grid gap-2 rounded-lg border px-3 py-3">
-                      {form.credits.map((row) => (
-                        <div
-                          key={row.id}
-                          className="app-credit-row"
-                          onDragOver={(event) => event.preventDefault()}
-                          onDrop={() => handleCreditDrop(row.id)}
-                          data-dragging={
-                            draggingCreditId === row.id ? "true" : "false"
-                          }
-                        >
-                          <button
-                            type="button"
-                            draggable
-                            onDragStart={(event) =>
-                              handleCreditDragStart(event, row.id)
-                            }
-                            onDragEnd={() => setDraggingCreditId(null)}
-                            className="app-credit-grip inline-flex h-9 w-6 cursor-grab items-center justify-center text-[#86868b] transition hover:text-[#1d1d1f] active:cursor-grabbing"
-                            aria-label={`Reorder ${row.role || "credit"} row`}
-                          >
-                            <GripVertical size={15} strokeWidth={1.7} />
-                          </button>
-                          <div className="app-credit-role relative">
-                            <input
-                              value={row.role}
-                              onChange={(event) =>
-                                updateCreditRow(row.id, {
-                                  role: event.target.value,
-                                })
-                              }
-                              onFocus={() =>
-                                setActiveCreditInput({
-                                  rowId: row.id,
-                                  field: "role",
-                                })
-                              }
-                              onBlur={() => setActiveCreditInput(null)}
-                              onKeyDown={(event) =>
-                                handleCreditKeyDown(event, row.id, "role")
-                              }
-                              onPaste={(event) =>
-                                handleCreditPaste(event, row, "role")
-                              }
-                              role="combobox"
-                              aria-autocomplete="list"
-                              aria-controls={creditSuggestionListId(
-                                row.id,
-                                "role",
-                              )}
-                              aria-expanded={
-                                activeCreditInput?.rowId === row.id &&
-                                activeCreditInput.field === "role" &&
-                                visibleCreditSuggestions.length > 0
-                              }
-                              autoComplete="off"
-                              maxLength={48}
-                              className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
-                              placeholder="Role"
-                            />
-                            {activeCreditInput?.rowId === row.id &&
-                            activeCreditInput.field === "role" &&
-                            visibleCreditSuggestions.length > 0 ? (
-                              <CreditSuggestionList
-                                id={creditSuggestionListId(row.id, "role")}
-                                suggestions={visibleCreditSuggestions}
-                                onSelect={selectCreditSuggestion}
-                              />
-                            ) : null}
-                          </div>
-                          <div className="app-credit-names relative">
-                            <input
-                              value={row.names}
-                              onChange={(event) =>
-                                updateCreditRow(row.id, {
-                                  names: event.target.value,
-                                })
-                              }
-                              onFocus={() =>
-                                setActiveCreditInput({
-                                  rowId: row.id,
-                                  field: "names",
-                                })
-                              }
-                              onBlur={() => setActiveCreditInput(null)}
-                              onKeyDown={(event) =>
-                                handleCreditKeyDown(event, row.id, "names")
-                              }
-                              onPaste={(event) =>
-                                handleCreditPaste(event, row, "names")
-                              }
-                              role="combobox"
-                              aria-autocomplete="list"
-                              aria-controls={creditSuggestionListId(
-                                row.id,
-                                "names",
-                              )}
-                              aria-expanded={
-                                activeCreditInput?.rowId === row.id &&
-                                activeCreditInput.field === "names" &&
-                                visibleCreditSuggestions.length > 0
-                              }
-                              autoComplete="off"
-                              maxLength={1600}
-                              className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
-                              placeholder="Names, separated by commas"
-                            />
-                            {activeCreditInput?.rowId === row.id &&
-                            activeCreditInput.field === "names" &&
-                            visibleCreditSuggestions.length > 0 ? (
-                              <CreditSuggestionList
-                                id={creditSuggestionListId(row.id, "names")}
-                                suggestions={visibleCreditSuggestions}
-                                onSelect={selectCreditSuggestion}
-                              />
-                            ) : null}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeCreditRow(row.id)}
-                            className="app-credit-remove app-icon-button inline-flex h-9 w-9 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-                            aria-label={`Remove ${row.role || "credit"} row`}
-                          >
-                            <X size={14} strokeWidth={1.7} />
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={addCreditRow}
-                        className="app-secondary-button mt-1 inline-flex h-9 w-fit items-center gap-2 rounded-full px-3 text-[13px] font-semibold"
+                {isCreditsFormOpen ? (
+                  <div className="app-credit-panel mt-2 grid gap-2 rounded-lg border px-3 py-3">
+                    {form.credits.map((row) => (
+                      <div
+                        key={row.id}
+                        className="app-credit-row"
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => handleCreditDrop(row.id)}
+                        data-dragging={
+                          draggingCreditId === row.id ? "true" : "false"
+                        }
                       >
-                        <Plus size={14} strokeWidth={1.8} />
-                        Add credit
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(event) =>
+                            handleCreditDragStart(event, row.id)
+                          }
+                          onDragEnd={() => setDraggingCreditId(null)}
+                          className="app-credit-grip inline-flex h-9 w-6 cursor-grab items-center justify-center text-[#86868b] transition hover:text-[#1d1d1f] active:cursor-grabbing"
+                          aria-label={`Reorder ${row.role || "credit"} row`}
+                        >
+                          <GripVertical size={15} strokeWidth={1.7} />
+                        </button>
+                        <div className="app-credit-role relative">
+                          <input
+                            value={row.role}
+                            onChange={(event) =>
+                              updateCreditRow(row.id, {
+                                role: event.target.value,
+                              })
+                            }
+                            onFocus={() =>
+                              setActiveCreditInput({
+                                rowId: row.id,
+                                field: "role",
+                              })
+                            }
+                            onBlur={() => setActiveCreditInput(null)}
+                            onKeyDown={(event) =>
+                              handleCreditKeyDown(event, row.id, "role")
+                            }
+                            onPaste={(event) =>
+                              handleCreditPaste(event, row, "role")
+                            }
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-controls={creditSuggestionListId(
+                              row.id,
+                              "role",
+                            )}
+                            aria-expanded={
+                              activeCreditInput?.rowId === row.id &&
+                              activeCreditInput.field === "role" &&
+                              visibleCreditSuggestions.length > 0
+                            }
+                            autoComplete="off"
+                            maxLength={48}
+                            className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
+                            placeholder="Role"
+                          />
+                          {activeCreditInput?.rowId === row.id &&
+                          activeCreditInput.field === "role" &&
+                          visibleCreditSuggestions.length > 0 ? (
+                            <CreditSuggestionList
+                              id={creditSuggestionListId(row.id, "role")}
+                              suggestions={visibleCreditSuggestions}
+                              onSelect={selectCreditSuggestion}
+                            />
+                          ) : null}
+                        </div>
+                        <div className="app-credit-names relative">
+                          <input
+                            value={row.names}
+                            onChange={(event) =>
+                              updateCreditRow(row.id, {
+                                names: event.target.value,
+                              })
+                            }
+                            onFocus={() =>
+                              setActiveCreditInput({
+                                rowId: row.id,
+                                field: "names",
+                              })
+                            }
+                            onBlur={() => setActiveCreditInput(null)}
+                            onKeyDown={(event) =>
+                              handleCreditKeyDown(event, row.id, "names")
+                            }
+                            onPaste={(event) =>
+                              handleCreditPaste(event, row, "names")
+                            }
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-controls={creditSuggestionListId(
+                              row.id,
+                              "names",
+                            )}
+                            aria-expanded={
+                              activeCreditInput?.rowId === row.id &&
+                              activeCreditInput.field === "names" &&
+                              visibleCreditSuggestions.length > 0
+                            }
+                            autoComplete="off"
+                            maxLength={1600}
+                            className="app-field h-9 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[13px] text-[#1d1d1f] outline-none transition"
+                            placeholder="Names, separated by commas"
+                          />
+                          {activeCreditInput?.rowId === row.id &&
+                          activeCreditInput.field === "names" &&
+                          visibleCreditSuggestions.length > 0 ? (
+                            <CreditSuggestionList
+                              id={creditSuggestionListId(row.id, "names")}
+                              suggestions={visibleCreditSuggestions}
+                              onSelect={selectCreditSuggestion}
+                            />
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeCreditRow(row.id)}
+                          className="app-credit-remove app-icon-button inline-flex h-9 w-9 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                          aria-label={`Remove ${row.role || "credit"} row`}
+                        >
+                          <X size={14} strokeWidth={1.7} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addCreditRow}
+                      className="app-secondary-button mt-1 inline-flex h-9 w-fit items-center gap-2 rounded-full px-3 text-[13px] font-semibold"
+                    >
+                      <Plus size={14} strokeWidth={1.8} />
+                      Add credit
+                    </button>
+                  </div>
+                ) : null}
+              </div>
 
               <div>
                 <label
@@ -3106,20 +2991,6 @@ function CreditSuggestionList({
         </button>
       ))}
     </div>
-  );
-}
-
-function CategoryBadge({ category }: { category: Category }) {
-  const label =
-    category === "music" ? "Music" : category === "image" ? "Image" : "Other";
-  const Icon =
-    category === "music" ? Music : category === "image" ? Image : Search;
-
-  return (
-    <span className="app-badge inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
-      <Icon size={13} strokeWidth={1.7} />
-      {label}
-    </span>
   );
 }
 

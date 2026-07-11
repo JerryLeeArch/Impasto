@@ -5,7 +5,6 @@ import {
   listFeed,
   listLogs,
   parseLogInput,
-  type CategoryFilter,
   type FeedScope,
 } from "@/lib/db";
 import { getAuthenticatedClient } from "@/lib/supabase/auth";
@@ -32,10 +31,8 @@ export async function GET(request: Request) {
     });
   }
 
-  const category = parseCategoryFilter(searchParams.get("category"));
   return NextResponse.json({
     logs: await listLogs(auth.supabase, {
-      category,
       itemId,
       albumTitle,
       search,
@@ -64,19 +61,6 @@ function parseScope(value: string | null): FeedScope | null {
   }
 
   return null;
-}
-
-function parseCategoryFilter(value: string | null): CategoryFilter {
-  if (
-    value === "music" ||
-    value === "image" ||
-    value === "other" ||
-    value === "all"
-  ) {
-    return value;
-  }
-
-  return "all";
 }
 
 function handleApiError(error: unknown) {
