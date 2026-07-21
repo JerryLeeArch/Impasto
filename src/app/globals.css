@@ -124,6 +124,13 @@ button:disabled {
     inset 0 1px 3px rgba(0, 0, 0, 0.16),
     inset 0 -1px 0 rgba(255, 255, 255, 0.92);
   --app-toggle-icon: #6e6e73;
+  /* Accents sit on a light panel here, so they need to be deep enough to read. */
+  --app-accent-green: #4b8f2e;
+  --app-accent-yellow: #d4af37;
+  /* Rating accents sit on the inverted (dark) selected pill, so they stay bright. */
+  --app-rating-like: #9bd36a;
+  --app-rating-neutral: #ff9f0a;
+  --app-rating-dislike: #ff6b5e;
   background: var(--app-bg);
   color: var(--app-text);
   transition:
@@ -173,7 +180,7 @@ button:disabled {
     inset 0 -7px 16px -17px rgba(255, 255, 255, 0.28);
   --app-card-shadow:
     0 16px 38px rgba(0, 0, 0, 0.54),
-    0 11px 28px -17px rgba(255, 255, 255, 0.46),
+    0 11px 28px -17px rgba(255, 255, 255, 0.6),
     inset 0 -10px 22px -22px rgba(255, 255, 255, 0.22);
   --app-modal-shadow:
     0 34px 100px rgba(0, 0, 0, 0.66),
@@ -193,6 +200,13 @@ button:disabled {
     inset 0 -1px 0 rgba(255, 255, 255, 0.56),
     inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   --app-toggle-icon: #111113;
+  /* Accents sit on a black panel here, so they can stay bright. */
+  --app-accent-green: #9bd36a;
+  --app-accent-yellow: #ffe14d;
+  /* Rating accents sit on the inverted (light) selected pill, so they darken. */
+  --app-rating-like: #3f7d22;
+  --app-rating-neutral: #b35c00;
+  --app-rating-dislike: #c62a1f;
 }
 
 .app-header {
@@ -389,6 +403,9 @@ button:disabled {
   background: var(--app-card-bg);
   border: 0;
   box-shadow: var(--app-card-shadow);
+  /* Positioned so each card paints above the previous card's glow instead of
+     letting that glow wash over its top edge. */
+  position: relative;
 }
 
 :root[data-theme="dark"] .app-shell .app-card-action,
@@ -448,7 +465,6 @@ button:disabled {
 
 .app-field:focus {
   border-color: var(--app-muted);
-  box-shadow: 0 0 0 4px var(--app-focus-ring);
 }
 
 .app-choice {
@@ -467,6 +483,18 @@ button:disabled {
   background: var(--app-primary-bg);
   border-color: var(--app-primary-bg);
   color: var(--app-primary-text);
+}
+
+.app-choice[data-active="true"][data-rating="like"] {
+  color: var(--app-rating-like);
+}
+
+.app-choice[data-active="true"][data-rating="neutral"] {
+  color: var(--app-rating-neutral);
+}
+
+.app-choice[data-active="true"][data-rating="dislike"] {
+  color: var(--app-rating-dislike);
 }
 
 .app-status-pill {
@@ -588,6 +616,14 @@ button:disabled {
 
 .app-credit-toggle:hover {
   background: var(--app-control-bg);
+}
+
+.app-credit-toggle.app-credit-confirm {
+  color: var(--app-accent-green);
+}
+
+.app-credit-toggle.app-genius-button:hover {
+  color: var(--app-accent-yellow);
 }
 
 .app-chevron {

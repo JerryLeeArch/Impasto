@@ -35,6 +35,8 @@ import {
   type LucideIcon,
   X,
 } from "lucide-react";
+import { AlbumCoverHeader } from "@/components/album-cover-header";
+import { ArtistProfileHeader } from "@/components/artist-profile-header";
 import { MusicMetadataPicker } from "@/components/music-metadata-picker";
 import {
   SpotifyPlayerBar,
@@ -231,6 +233,7 @@ export default function Home() {
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>("feed");
   const [search, setSearch] = useState("");
+  const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<SelectedAlbum | null>(
     null,
@@ -296,6 +299,8 @@ export default function Home() {
       ? ["logs", "item", selectedItem.id]
       : selectedAlbum
         ? ["logs", "album", selectedAlbum.albumTitle]
+        : selectedArtist
+          ? ["logs", "artist", feedScope, selectedArtist]
       : ["logs", "feed", feedScope, trimmedSearch],
     enabled: viewMode === "feed",
     queryFn: async () => {
@@ -305,6 +310,9 @@ export default function Home() {
         params.set("itemId", selectedItem.id);
       } else if (selectedAlbum) {
         params.set("albumTitle", selectedAlbum.albumTitle);
+      } else if (selectedArtist) {
+        params.set("scope", feedScope);
+        params.set("search", selectedArtist);
       } else {
         params.set("scope", feedScope);
         if (trimmedSearch) {
@@ -352,7 +360,17 @@ export default function Home() {
     },
   });
 
-  const isDrilldown = Boolean(selectedItem || selectedAlbum);
+  const isDrilldown = Boolean(selectedItem || selectedAlbum || selectedArtist);
+
+  // Spotify returns the album's artwork with every track, so any log on this
+  // album already carries the cover — no extra lookup needed.
+  const albumCoverUrl = useMemo(() => {
+    if (!selectedAlbum) {
+      return null;
+    }
+
+    return logs.find((log) => log.coverUrl)?.coverUrl ?? null;
+  }, [logs, selectedAlbum]);
 
   const { data: friendList } = useQuery<FriendList>({
     queryKey: ["friends"],
@@ -808,7 +826,7 @@ export default function Home() {
       coverUrl: log.coverUrl ?? "",
       spotifyTrackId: log.spotifyTrackId ?? "",
     });
-    setIsCreditsFormOpen(log.credits.length > 0);
+    setIsCreditsFormOpen(false);
     setComposerMode("layer");
     setIsComposerOpen(true);
   }
@@ -830,6 +848,7 @@ export default function Home() {
     setViewMode("feed");
     setSelectedItem(item);
     setSelectedAlbum(null);
+    setSelectedArtist(null);
     setSearch("");
     window.scrollTo(0, 0);
   }
@@ -854,6 +873,7 @@ export default function Home() {
     setViewMode("feed");
     setSelectedItem(null);
     setSelectedAlbum(album);
+    setSelectedArtist(null);
     setSearch("");
     window.scrollTo(0, 0);
   }
@@ -875,6 +895,7 @@ export default function Home() {
             scrollY?: number;
             item?: SelectedItem;
             album?: SelectedAlbum;
+            artist?: string;
           }
         | null;
 
@@ -882,6 +903,7 @@ export default function Home() {
         setViewMode("feed");
         setSelectedItem(state.item);
         setSelectedAlbum(null);
+        setSelectedArtist(null);
         setSearch("");
         window.scrollTo(0, 0);
         return;
@@ -891,6 +913,17 @@ export default function Home() {
         setViewMode("feed");
         setSelectedItem(null);
         setSelectedAlbum(state.album);
+        setSelectedArtist(null);
+        setSearch("");
+        window.scrollTo(0, 0);
+        return;
+      }
+
+      if (state?.view === "artist" && state.artist) {
+        setViewMode("feed");
+        setSelectedItem(null);
+        setSelectedAlbum(null);
+        setSelectedArtist(state.artist);
         setSearch("");
         window.scrollTo(0, 0);
         return;
@@ -899,6 +932,7 @@ export default function Home() {
       setViewMode("feed");
       setSelectedItem(null);
       setSelectedAlbum(null);
+      setSelectedArtist(null);
 
       if (state?.view === "feed") {
         setSearch(state.search ?? "");
@@ -953,17 +987,33 @@ export default function Home() {
     document.cookie = `${themeStorageKey}=${theme}; path=/; max-age=${themeCookieMaxAge}; SameSite=Lax`;
   }, [isDarkMode, isThemeReady]);
 
-  function searchByArtist(artist: string) {
+  // Clicking an artist opens a dedicated artist view (pushed onto history so
+  // Back returns to the list) rather than typing the name into the search box.
+  function openArtistView(artist: string) {
+    const normalizedArtist = artist.trim();
+
+    if (!normalizedArtist) {
+      return;
+    }
+
+    window.history.replaceState(
+      { view: "feed", search, scrollY: window.scrollY },
+      "",
+    );
+    window.history.pushState({ view: "artist", artist: normalizedArtist }, "");
     setViewMode("feed");
     setSelectedItem(null);
     setSelectedAlbum(null);
-    setSearch(artist);
+    setSelectedArtist(normalizedArtist);
+    setSearch("");
+    window.scrollTo(0, 0);
   }
 
   function openRankingView() {
     setViewMode("ranking");
     setSelectedItem(null);
     setSelectedAlbum(null);
+    setSelectedArtist(null);
     setSearch("");
     setError(null);
     setIsCandidatePickerOpen(false);
@@ -1433,6 +1483,7 @@ export default function Home() {
     setViewMode("feed");
     setSelectedItem(null);
     setSelectedAlbum(null);
+    setSelectedArtist(null);
     setSearch("");
     setError(null);
     setIsCandidatePickerOpen(false);
@@ -1486,6 +1537,7 @@ export default function Home() {
                   setViewMode("feed");
                   setSelectedItem(null);
                   setSelectedAlbum(null);
+                  setSelectedArtist(null);
                   setSearch(event.target.value);
                 }}
                 placeholder={
@@ -1557,6 +1609,7 @@ export default function Home() {
                   setViewMode("feed");
                   setSelectedItem(null);
                   setSelectedAlbum(null);
+                  setSelectedArtist(null);
                 }}
                 data-active={viewMode === "feed" ? "true" : "false"}
                 className={`app-tab h-7 shrink-0 text-[12px] transition ${
@@ -1582,7 +1635,7 @@ export default function Home() {
         </header>
 
         <section className="flex flex-1 flex-col gap-3 pt-4">
-          {viewMode === "feed" && !selectedItem && !selectedAlbum ? (
+          {viewMode === "feed" && !selectedItem && !selectedAlbum && !selectedArtist ? (
             <div className="flex items-center gap-1.5">
               {feedScopeOptions.map((option) => {
                 const selected = feedScope === option.value;
@@ -1605,56 +1658,49 @@ export default function Home() {
               })}
             </div>
           ) : null}
-          {viewMode === "feed" && (selectedItem || selectedAlbum) ? (
+          {viewMode === "feed" && selectedArtist ? (
+            <ArtistProfileHeader
+              artist={selectedArtist}
+              onBack={closeItemLayers}
+            />
+          ) : null}
+          {viewMode === "feed" && selectedAlbum ? (
+            <AlbumCoverHeader
+              albumTitle={selectedAlbum.albumTitle}
+              artists={selectedAlbum.artists}
+              fallbackCoverUrl={albumCoverUrl}
+              onBack={closeItemLayers}
+            />
+          ) : null}
+          {viewMode === "feed" && selectedItem ? (
             <div className="app-selected-item flex items-center justify-between gap-3 rounded-lg bg-[#f5f5f7] px-5 py-5">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-                {selectedItem ? (
-                  <>
-                    <span className="app-card-title break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
-                      {selectedItem.title}
-                    </span>
-                    {selectedItem.artists.map((artist) => (
-                      <span
-                        key={artist}
-                        className="app-muted break-words text-[15px] font-medium leading-tight text-[#6e6e73]"
-                      >
-                        {artist}
-                      </span>
-                    ))}
-                    {selectedItem.albumTitle ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openAlbumSongs(
-                            selectedItem.albumTitle,
-                            selectedItem.artists,
-                          )
-                        }
-                        className="app-muted-link break-words text-left text-[13px] font-medium leading-tight text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
-                        aria-label={`Show songs on ${selectedItem.albumTitle}`}
-                      >
-                        {selectedItem.albumTitle}
-                      </button>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    <span className="app-card-title break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
-                      {selectedAlbum?.albumTitle}
-                    </span>
-                    <span className="app-muted break-words text-[15px] font-medium leading-tight text-[#6e6e73]">
-                      Album
-                    </span>
-                    {selectedAlbum?.artists.map((artist) => (
-                      <span
-                        key={artist}
-                        className="app-muted break-words text-[13px] font-medium leading-tight text-[#6e6e73]"
-                      >
-                        {artist}
-                      </span>
-                    ))}
-                  </>
-                )}
+                <span className="app-card-title break-words text-[30px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+                  {selectedItem.title}
+                </span>
+                {selectedItem.artists.map((artist) => (
+                  <span
+                    key={artist}
+                    className="app-muted break-words text-[15px] font-medium leading-tight text-[#6e6e73]"
+                  >
+                    {artist}
+                  </span>
+                ))}
+                {selectedItem.albumTitle ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openAlbumSongs(
+                        selectedItem.albumTitle,
+                        selectedItem.artists,
+                      )
+                    }
+                    className="app-muted-link break-words text-left text-[13px] font-medium leading-tight text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
+                    aria-label={`Show songs on ${selectedItem.albumTitle}`}
+                  >
+                    {selectedItem.albumTitle}
+                  </button>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -1966,9 +2012,9 @@ export default function Home() {
                         <button
                           key={artist}
                           type="button"
-                          onClick={() => searchByArtist(artist)}
+                          onClick={() => openArtistView(artist)}
                           className="app-muted-link break-words text-left text-[15px] font-medium leading-tight text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
-                          aria-label={`Search logs by ${artist}`}
+                          aria-label={`Show ${artist}`}
                         >
                           {artist}
                         </button>
@@ -2194,11 +2240,11 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               <div>
                 <label
                   htmlFor="title"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Title
                 </label>
@@ -2213,7 +2259,7 @@ export default function Home() {
                   }
                   maxLength={160}
                   required
-                  className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  className="app-field h-8 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b]"
                   placeholder="Song title"
                 />
               </div>
@@ -2221,7 +2267,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="artists"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Artists
                 </label>
@@ -2238,7 +2284,7 @@ export default function Home() {
                     onFocus={() => setIsArtistInputFocused(true)}
                     onBlur={() => setIsArtistInputFocused(false)}
                     onKeyDown={handleArtistKeyDown}
-                    className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                    className="app-field h-8 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b]"
                     placeholder="Frank Ocean, James Blake"
                   />
                   {isArtistInputFocused &&
@@ -2275,7 +2321,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="album"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Album
                 </label>
@@ -2289,7 +2335,7 @@ export default function Home() {
                     }))
                   }
                   maxLength={160}
-                  className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  className="app-field h-8 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b]"
                   placeholder="Album title (optional)"
                 />
               </div>
@@ -2297,7 +2343,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="genres"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Genres
                 </label>
@@ -2311,7 +2357,7 @@ export default function Home() {
                     }))
                   }
                   maxLength={240}
-                  className="app-field h-10 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  className="app-field h-8 w-full rounded-lg border border-[#d2d2d7] bg-white px-3 text-[15px] text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b]"
                   placeholder="R&B, Art pop, Ambient (optional)"
                 />
               </div>
@@ -2320,7 +2366,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setIsCreditsFormOpen((current) => !current)}
-                  className="app-credit-toggle flex h-10 w-full items-center justify-between rounded-lg border px-3 text-left text-[13px] font-semibold transition"
+                  className="app-credit-toggle flex h-8 w-full items-center justify-between rounded-lg border px-3 text-left text-[13px] font-semibold transition"
                   aria-expanded={isCreditsFormOpen}
                 >
                   <span>Credits</span>
@@ -2480,7 +2526,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="rating"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Rating
                 </label>
@@ -2499,9 +2545,10 @@ export default function Home() {
                           }))
                         }
                         data-active={selected ? "true" : "false"}
+                        data-rating={option.value}
                         className={`app-choice h-9 rounded-full border text-[13px] font-semibold transition ${
                           selected
-                            ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
+                            ? "border-[#1d1d1f] bg-[#1d1d1f]"
                             : "border-transparent bg-[#f5f5f7] text-[#6e6e73] hover:bg-white hover:text-[#1d1d1f] hover:ring-1 hover:ring-[#d2d2d7]"
                         }`}
                       >
@@ -2512,10 +2559,12 @@ export default function Home() {
                 </div>
               </div>
 
-              <div>
+              {/* An Impasto layer only records how the opinion changed, so Notes
+                  leads the form there instead of sitting below the metadata. */}
+              <div className={composerMode === "layer" ? "order-first" : ""}>
                 <label
                   htmlFor="notes"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Notes
                 </label>
@@ -2532,8 +2581,10 @@ export default function Home() {
                   onDoubleClick={handleNotesDoubleClick}
                   maxLength={5000}
                   required
-                  rows={7}
-                  className="app-field w-full resize-none rounded-lg border border-[#d2d2d7] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b] focus:ring-4 focus:ring-[#d2d2d7]/35"
+                  rows={10}
+                  // Notes leads the Impasto form, so it also takes focus there.
+                  autoFocus={composerMode === "layer"}
+                  className="app-field w-full resize-none rounded-lg border border-[#d2d2d7] bg-white px-3 py-2 text-[15px] leading-6 text-[#1d1d1f] outline-none transition placeholder:text-[#86868b] focus:border-[#86868b]"
                   placeholder="What did you like or dislike?"
                 />
               </div>
@@ -2541,7 +2592,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="visibility"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Visibility
                 </label>
@@ -2636,7 +2687,7 @@ export default function Home() {
               <form onSubmit={(event) => void handleUsernameSubmit(event)}>
                 <label
                   htmlFor="username"
-                  className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                  className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
                 >
                   Username
                 </label>
@@ -2703,7 +2754,7 @@ export default function Home() {
               </form>
 
               <div>
-                <p className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]">
+                <p className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]">
                   Default visibility for new logs
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -2795,7 +2846,7 @@ export default function Home() {
             >
               <label
                 htmlFor="friend-username"
-                className="app-label mb-1.5 block text-[13px] font-semibold text-[#6e6e73]"
+                className="app-label mb-2 block text-[13px] font-semibold text-[#6e6e73]"
               >
                 Add a friend by username
               </label>
@@ -2840,7 +2891,7 @@ export default function Home() {
 
             {friendList && friendList.incoming.length > 0 ? (
               <div className="mt-4">
-                <p className="app-label mb-1.5 text-[13px] font-semibold text-[#6e6e73]">
+                <p className="app-label mb-2 text-[13px] font-semibold text-[#6e6e73]">
                   Requests received
                 </p>
                 <div className="grid gap-1.5">
@@ -2882,7 +2933,7 @@ export default function Home() {
 
             {friendList && friendList.outgoing.length > 0 ? (
               <div className="mt-4">
-                <p className="app-label mb-1.5 text-[13px] font-semibold text-[#6e6e73]">
+                <p className="app-label mb-2 text-[13px] font-semibold text-[#6e6e73]">
                   Requests sent
                 </p>
                 <div className="grid gap-1.5">
@@ -2911,7 +2962,7 @@ export default function Home() {
             ) : null}
 
             <div className="mt-4">
-              <p className="app-label mb-1.5 text-[13px] font-semibold text-[#6e6e73]">
+              <p className="app-label mb-2 text-[13px] font-semibold text-[#6e6e73]">
                 Your friends
               </p>
               {friendList && friendList.accepted.length > 0 ? (
