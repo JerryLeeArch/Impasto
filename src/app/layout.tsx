@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import "./globals.css";
 import Providers from "./providers";
 
@@ -61,6 +61,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const initialTheme = toTheme(cookieStore.get(themeCookieName)?.value);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html
@@ -70,7 +71,11 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
       </head>
       <body>
         <Providers>{children}</Providers>
