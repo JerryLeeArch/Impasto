@@ -20,7 +20,6 @@ type MusicMetadataPickerProps = {
   title: string;
   artists: string[];
   linkedTrackId: string;
-  hasCover: boolean;
   onApplyTrack: (match: TrackMatch) => void;
   onClearTrack: () => void;
   onApplyCredits: (credits: Credit[]) => void;
@@ -30,7 +29,6 @@ export function MusicMetadataPicker({
   title,
   artists,
   linkedTrackId,
-  hasCover,
   onApplyTrack,
   onClearTrack,
   onApplyCredits,
@@ -367,7 +365,7 @@ export function MusicMetadataPicker({
         <div className="flex items-center justify-between gap-2">
           <p className="app-metadata-muted inline-flex items-center gap-1.5 text-[12px] font-medium">
             <Music size={12} strokeWidth={1.8} />
-            Spotify track linked{hasCover ? " · album art attached" : ""}.
+            Spotify track linked.
           </p>
           <button
             type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 
 // Spotify iFrame Embed API (https://developer.spotify.com/documentation/embeds).
@@ -25,17 +25,23 @@ type SpotifyIframeApi = {
 declare global {
   interface Window {
     onSpotifyIframeApiReady?: (api: SpotifyIframeApi) => void;
+    impastoSpotifyIframeApi?: SpotifyIframeApi;
   }
 }
 
 let apiPromise: Promise<SpotifyIframeApi> | null = null;
 
-// The script calls window.onSpotifyIframeApiReady exactly once, so the promise
-// is cached for the lifetime of the page.
 function loadIframeApi() {
+  if (window.impastoSpotifyIframeApi) {
+    return Promise.resolve(window.impastoSpotifyIframeApi);
+  }
+
   if (!apiPromise) {
     apiPromise = new Promise<SpotifyIframeApi>((resolve) => {
-      window.onSpotifyIframeApiReady = (api) => resolve(api);
+      window.onSpotifyIframeApiReady = (api) => {
+        window.impastoSpotifyIframeApi = api;
+        resolve(api);
+      };
 
       const script = document.createElement("script");
       script.src = "https://open.spotify.com/embed/iframe-api/v1";
@@ -52,6 +58,28 @@ export type NowPlayingTrack = {
   title: string;
 };
 
+const HINT_DISMISSED_KEY = "impasto-spotify-full-track-hint";
+
+const hintListeners = new Set<() => void>();
+
+function subscribeHint(onChange: () => void) {
+  hintListeners.add(onChange);
+  return () => {
+    hintListeners.delete(onChange);
+  };
+}
+
+function isHintDismissed() {
+  return window.localStorage.getItem(HINT_DISMISSED_KEY) === "1";
+}
+
+function dismissHint() {
+  window.localStorage.setItem(HINT_DISMISSED_KEY, "1");
+  for (const listener of hintListeners) {
+    listener();
+  }
+}
+
 export function SpotifyPlayerBar({
   track,
   onClose,
@@ -61,6 +89,11 @@ export function SpotifyPlayerBar({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<EmbedController | null>(null);
+  const showHint = !useSyncExternalStore(
+    subscribeHint,
+    isHintDismissed,
+    () => true,
+  );
 
   useEffect(() => {
     const uri = `spotify:track:${track.trackId}`;
@@ -110,16 +143,41 @@ export function SpotifyPlayerBar({
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-4 sm:px-8">
       <div className="pointer-events-auto mx-auto w-full max-w-[860px]">
-        <div className="app-player-bar flex items-stretch overflow-hidden rounded-2xl">
-          <div ref={hostRef} className="h-[80px] min-w-0 flex-1" />
-          <button
-            type="button"
-            onClick={onClose}
-            className="app-icon-button flex w-10 shrink-0 items-center justify-center text-[#86868b] transition hover:text-[#1d1d1f]"
-            aria-label={`Close player for ${track.title}`}
-          >
-            <X size={16} strokeWidth={1.8} />
-          </button>
+        <div className="app-player-bar overflow-hidden rounded-2xl">
+          <div className="flex items-stretch">
+            <div ref={hostRef} className="h-[80px] min-w-0 flex-1" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="app-icon-button flex w-10 shrink-0 items-center justify-center text-[#86868b] transition hover:text-[#1d1d1f]"
+              aria-label={`Close player for ${track.title}`}
+            >
+              <X size={16} strokeWidth={1.8} />
+            </button>
+          </div>
+          {showHint ? (
+            <div className="flex items-center gap-2 border-t border-[#d2d2d7]/50 px-3 py-1.5 text-[11px] font-medium leading-4 text-[#86868b]">
+              <span className="min-w-0 flex-1">
+                Hearing only 30 seconds?{" "}
+                <a
+                  href="https://open.spotify.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline transition hover:text-[#1d1d1f]"
+                >
+                  Log in to Spotify Premium
+                </a>{" "}
+                to play full tracks.
+              </span>
+              <button
+                type="button"
+                onClick={dismissHint}
+                className="shrink-0 rounded px-1 underline transition hover:text-[#1d1d1f]"
+              >
+                Got it
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

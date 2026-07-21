@@ -28,8 +28,7 @@ export type AlbumCover = {
   spotifyAlbumId: string;
   name: string;
   imageUrl: string | null;
-  // The album's own credited artists, which differ from the artists on any one
-  // logged track (a featured guest is on the track, not the album).
+  // The album's own credits — a featured guest is on the track, not the album.
   artists: string[];
 };
 
