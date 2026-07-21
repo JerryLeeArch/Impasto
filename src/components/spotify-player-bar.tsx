@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 
 // Spotify iFrame Embed API (https://developer.spotify.com/documentation/embeds).
@@ -89,6 +89,10 @@ export function SpotifyPlayerBar({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<EmbedController | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
+  const [retryKey, setRetryKey] = useState(0);
   const showHint = !useSyncExternalStore(
     subscribeHint,
     isHintDismissed,
@@ -105,6 +109,9 @@ export function SpotifyPlayerBar({
     }
 
     let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      setStatus((current) => (current === "loading" ? "error" : current));
+    }, 10000);
 
     void loadIframeApi().then((api) => {
       if (cancelled || !hostRef.current || controllerRef.current) {
@@ -122,6 +129,8 @@ export function SpotifyPlayerBar({
         (controller) => {
           controllerRef.current = controller;
           controller.addListener("ready", () => {
+            window.clearTimeout(timeout);
+            setStatus("ready");
             controller.play();
           });
         },
@@ -130,8 +139,17 @@ export function SpotifyPlayerBar({
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
     };
-  }, [track.trackId]);
+  }, [track.trackId, retryKey]);
+
+  function retry() {
+    controllerRef.current?.destroy();
+    controllerRef.current = null;
+    hostRef.current?.replaceChildren();
+    setStatus("loading");
+    setRetryKey((current) => current + 1);
+  }
 
   useEffect(() => {
     return () => {
@@ -145,7 +163,24 @@ export function SpotifyPlayerBar({
       <div className="pointer-events-auto mx-auto w-full max-w-[860px]">
         <div className="app-player-bar overflow-hidden rounded-2xl">
           <div className="flex items-stretch">
-            <div ref={hostRef} className="h-[80px] min-w-0 flex-1" />
+            <div
+              ref={hostRef}
+              className={
+                status === "error" ? "hidden" : "h-[80px] min-w-0 flex-1"
+              }
+            />
+            {status === "error" ? (
+              <div className="flex h-[80px] min-w-0 flex-1 flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 text-[13px] font-medium text-[#86868b]">
+                <span>Spotify had an error and the player did not load.</span>
+                <button
+                  type="button"
+                  onClick={retry}
+                  className="rounded-full bg-[#f5f5f7] px-3 py-1 font-semibold text-[#1d1d1f] transition hover:bg-[#e8e8ed]"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={onClose}

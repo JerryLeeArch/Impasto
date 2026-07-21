@@ -1,8 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { buildContentSecurityPolicy } from "@/lib/csp";
 import { getSupabaseConfig } from "@/lib/supabase/shared";
 
 export async function proxy(request: NextRequest) {
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const csp = buildContentSecurityPolicy(nonce);
+  request.headers.set("x-nonce", nonce);
+  request.headers.set("content-security-policy", csp);
+
   let response = NextResponse.next({ request });
   const { url, publishableKey } = getSupabaseConfig();
   const supabase = createServerClient(url, publishableKey, {
@@ -47,6 +53,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(homeUrl);
   }
 
+  response.headers.set("Content-Security-Policy", csp);
   return response;
 }
 
