@@ -12,16 +12,13 @@ export function AlbumCoverHeader({
   onBack,
 }: {
   albumTitle: string;
-  // Artists taken from a logged track on this album — used to find the album and
-  // as a fallback, but Spotify's album credits win once they arrive.
+  // From a logged track — Spotify's album credits win once they arrive.
   artists: string[];
-  // Artwork already stored on this album's logs, shown while the lookup is in
-  // flight and kept if Spotify has no match.
+  // Shown while the lookup is in flight, and kept if Spotify has no match.
   fallbackCoverUrl: string | null;
   onBack: () => void;
 }) {
-  // Searching by title alone is unreliable ("Dark" matches an unrelated album),
-  // so the primary artist is part of the query and the cache key.
+  // Title alone is unreliable: "Dark" matches an unrelated album.
   const primaryArtist = artists[0] ?? "";
 
   const { data: album } = useQuery<AlbumCover | null>({

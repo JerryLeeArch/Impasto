@@ -20,9 +20,9 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verified locally — see lib/supabase/auth.ts.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? { id: data.claims.sub } : null;
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
     pathname === "/login" ||

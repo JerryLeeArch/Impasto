@@ -1,15 +1,15 @@
 import { createClient } from "./server";
 
+// getClaims() verifies the JWT locally (the project signs with ES256). getUser()
+// costs an auth-server round trip; getSession() skips verification entirely.
 export async function getAuthenticatedClient() {
   const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
 
-  if (error || !user) {
+  const userId = data?.claims?.sub;
+  if (error || !userId) {
     return null;
   }
 
-  return { supabase, user };
+  return { supabase, user: { id: userId } };
 }

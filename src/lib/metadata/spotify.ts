@@ -146,10 +146,8 @@ type SpotifyArtist = {
   images?: SpotifyImage[];
 };
 
-// Looks up the artist photo shown above an artist's logs. Returns null when
-// Spotify has no match for the name. Genres, follower counts and popularity are
-// deliberately absent: Spotify stopped returning them to client-credentials
-// apps in Nov 2024, so there is nothing to read.
+// Photo only: Spotify stopped returning genres, followers and popularity to
+// client-credentials apps in Nov 2024.
 export async function searchSpotifyArtist(
   name: string,
 ): Promise<ArtistProfile | null> {
