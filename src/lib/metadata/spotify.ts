@@ -2,7 +2,13 @@
 // login / Premium needed). Used to fetch album art and the track id that the
 // in-browser embed player needs.
 
-import { MetadataConfigError, MetadataError, type TrackMatch } from "./types";
+import {
+  MetadataConfigError,
+  MetadataError,
+  type AlbumCover,
+  type ArtistProfile,
+  type TrackMatch,
+} from "./types";
 import { fetchProvider } from "./request";
 
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
@@ -132,6 +138,139 @@ export async function searchSpotifyTracks(
       releaseDate: track.album?.release_date ?? null,
       explicit: Boolean(track.explicit),
     }));
+}
+
+type SpotifyArtist = {
+  id: string;
+  name: string;
+  images?: SpotifyImage[];
+};
+
+// Looks up the artist photo shown above an artist's logs. Returns null when
+// Spotify has no match for the name. Genres, follower counts and popularity are
+// deliberately absent: Spotify stopped returning them to client-credentials
+// apps in Nov 2024, so there is nothing to read.
+export async function searchSpotifyArtist(
+  name: string,
+): Promise<ArtistProfile | null> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let token = await getAppToken();
+
+  const url = new URL(SEARCH_URL);
+  url.searchParams.set("q", `artist:${trimmed}`);
+  url.searchParams.set("type", "artist");
+  url.searchParams.set("limit", "5");
+
+  let response = await fetchSpotifySearch(url, token);
+  if (response.status === 401) {
+    cachedToken = null;
+    token = await getAppToken();
+    response = await fetchSpotifySearch(url, token);
+  }
+
+  if (!response.ok) {
+    throw new MetadataError("Spotify artist search failed.");
+  }
+
+  const data = (await response.json()) as {
+    artists?: { items?: SpotifyArtist[] };
+  };
+  const items = (data.artists?.items ?? []).filter((artist) =>
+    /^[A-Za-z0-9]{22}$/.test(artist?.id ?? ""),
+  );
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  // Spotify ranks by popularity, which can put a bigger unrelated artist above
+  // an exact name match, so prefer the exact match when there is one.
+  const normalized = normalizeName(trimmed);
+  const match =
+    items.find((artist) => normalizeName(artist.name) === normalized) ??
+    items[0];
+
+  return {
+    spotifyArtistId: match.id,
+    name: match.name,
+    imageUrl: pickCoverImage(match.images),
+  };
+}
+
+type SpotifyAlbum = {
+  id: string;
+  name: string;
+  images?: SpotifyImage[];
+  artists?: { name: string }[];
+};
+
+// Looks up the artwork shown above an album's logs. The artist filter is not
+// optional in practice: a bare title like "Dark" returns an unrelated album.
+export async function searchSpotifyAlbum(
+  albumTitle: string,
+  artist: string,
+): Promise<AlbumCover | null> {
+  const trimmedTitle = albumTitle.trim();
+  const trimmedArtist = artist.trim();
+
+  if (!trimmedTitle) {
+    return null;
+  }
+
+  let token = await getAppToken();
+
+  const url = new URL(SEARCH_URL);
+  url.searchParams.set(
+    "q",
+    trimmedArtist
+      ? `album:${trimmedTitle} artist:${trimmedArtist}`
+      : `album:${trimmedTitle}`,
+  );
+  url.searchParams.set("type", "album");
+  url.searchParams.set("limit", "5");
+
+  let response = await fetchSpotifySearch(url, token);
+  if (response.status === 401) {
+    cachedToken = null;
+    token = await getAppToken();
+    response = await fetchSpotifySearch(url, token);
+  }
+
+  if (!response.ok) {
+    throw new MetadataError("Spotify album search failed.");
+  }
+
+  const data = (await response.json()) as {
+    albums?: { items?: SpotifyAlbum[] };
+  };
+  const items = (data.albums?.items ?? []).filter((album) =>
+    /^[A-Za-z0-9]{22}$/.test(album?.id ?? ""),
+  );
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  // Spotify ranks by popularity, so a deluxe or compilation edition can outrank
+  // the album itself ("H.E.R. Volume 1" above "H.E.R."). Prefer an exact title.
+  const normalized = normalizeName(trimmedTitle);
+  const match =
+    items.find((album) => normalizeName(album.name) === normalized) ?? items[0];
+
+  return {
+    spotifyAlbumId: match.id,
+    name: match.name,
+    imageUrl: pickCoverImage(match.images),
+    artists: (match.artists ?? []).map((a) => a.name).filter(Boolean),
+  };
+}
+
+function normalizeName(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function fetchSpotifySearch(url: URL, token: string) {

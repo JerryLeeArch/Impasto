@@ -187,7 +187,7 @@ export function MusicMetadataPicker({
           type="button"
           onClick={() => void searchSpotify()}
           disabled={!normalizedTitle || isBusy}
-          className="app-credit-toggle flex h-10 items-center justify-center gap-2 rounded-lg border text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="app-credit-toggle flex h-8 items-center justify-center gap-2 rounded-lg border text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
         >
           {phase === "spotify-loading" ? (
             <Loader2 size={15} strokeWidth={1.8} className="animate-spin" />
@@ -200,7 +200,7 @@ export function MusicMetadataPicker({
           type="button"
           onClick={() => void searchGenius()}
           disabled={!normalizedTitle || isBusy}
-          className="app-credit-toggle flex h-10 items-center justify-center gap-2 rounded-lg border text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="app-credit-toggle app-genius-button flex h-8 items-center justify-center gap-2 rounded-lg border text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
         >
           {phase === "genius-loading" ? (
             <Loader2 size={15} strokeWidth={1.8} className="animate-spin" />
@@ -355,7 +355,7 @@ export function MusicMetadataPicker({
               type="button"
               onClick={confirmCredits}
               disabled={credits.length === 0}
-              className="app-credit-toggle flex h-9 items-center justify-center rounded-md border text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              className="app-credit-toggle app-credit-confirm flex h-9 items-center justify-center rounded-md border text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add credits
             </button>
