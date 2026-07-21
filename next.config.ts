@@ -2,16 +2,13 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 
-// React/Turbopack need eval() for HMR + debugging in development only.
-// Production never uses eval, so it stays out of the CSP there.
 // The iFrame Embed API that drives the persistent bottom player bar loads a
 // bootstrap from open.spotify.com, which then loads the real player script
-// from Spotify's CDN.
+// from Spotify's CDN. That script calls eval() internally, so unsafe-eval is
+// needed in production too, not just for HMR.
 const spotifyScriptOrigins =
   "https://open.spotify.com https://embed-cdn.spotifycdn.com";
-const scriptSrc = isDev
-  ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${spotifyScriptOrigins}`
-  : `script-src 'self' 'unsafe-inline' ${spotifyScriptOrigins}`;
+const scriptSrc = `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${spotifyScriptOrigins}`;
 
 // Local Supabase runs on http://127.0.0.1:54321 in dev; production talks to the
 // hosted project over https/wss. Allow the right origins per environment.
