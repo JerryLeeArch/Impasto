@@ -35,7 +35,6 @@ export function MusicMetadataPicker({
 }: MusicMetadataPickerProps) {
   const [phase, setPhase] = useState<LookupPhase>("idle");
   const [matches, setMatches] = useState<TrackMatch[]>([]);
-  const [selectedMatch, setSelectedMatch] = useState<TrackMatch | null>(null);
   const [credits, setCredits] = useState<Credit[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +79,6 @@ export function MusicMetadataPicker({
     const controller = startRequest();
     setPhase("spotify-loading");
     setMatches([]);
-    setSelectedMatch(null);
     setCredits([]);
     setSpotifyQueryKey(currentQueryKey);
 
@@ -119,7 +117,6 @@ export function MusicMetadataPicker({
     const source = [lookupTitle, lookupArtist].filter(Boolean).join(" — ");
     setPhase("genius-loading");
     setMatches([]);
-    setSelectedMatch(null);
     setCredits([]);
     setGeniusSource(source);
 
@@ -148,15 +145,13 @@ export function MusicMetadataPicker({
     }
   }
 
-  function confirmSpotifyMatch() {
-    if (!selectedMatch || spotifyResultsAreStale || isBusy) {
+  function applySpotifyMatch(match: TrackMatch) {
+    if (spotifyResultsAreStale || isBusy) {
       return;
     }
 
-    const match = selectedMatch;
     onApplyTrack(match);
     setMatches([]);
-    setSelectedMatch(null);
     void searchGenius(match.title, match.artists[0] ?? "");
   }
 
@@ -170,7 +165,6 @@ export function MusicMetadataPicker({
 
   function closeReview() {
     setMatches([]);
-    setSelectedMatch(null);
     setCredits([]);
     setWarnings([]);
     setError(null);
@@ -223,15 +217,13 @@ export function MusicMetadataPicker({
         <div className="app-credit-panel grid gap-1 rounded-lg border p-2">
           {matches.length > 0 ? (
             matches.map((match) => {
-              const isSelected =
-                selectedMatch?.spotifyTrackId === match.spotifyTrackId;
               return (
                 <button
                   key={match.spotifyTrackId}
                   type="button"
-                  onClick={() => setSelectedMatch(match)}
-                  aria-pressed={isSelected}
-                  className="app-metadata-result app-suggestion-button flex items-center gap-3 rounded-md border border-transparent px-2 py-2 text-left transition"
+                  onClick={() => applySpotifyMatch(match)}
+                  disabled={spotifyResultsAreStale}
+                  className="app-metadata-result app-suggestion-button flex items-center gap-3 rounded-md border border-transparent px-2 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {match.coverUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -290,19 +282,8 @@ export function MusicMetadataPicker({
 
           {spotifyResultsAreStale ? (
             <p className="px-2 pt-1 text-[11px] font-medium text-[#9a6a00]">
-              The title or artist changed. Search again before confirming.
+              The title or artist changed. Search again.
             </p>
-          ) : null}
-
-          {matches.length > 0 ? (
-            <button
-              type="button"
-              onClick={confirmSpotifyMatch}
-              disabled={!selectedMatch || spotifyResultsAreStale}
-              className="app-credit-toggle mt-1 flex h-9 w-full items-center justify-center rounded-md border text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Confirm Spotify match
-            </button>
           ) : null}
         </div>
       ) : null}
