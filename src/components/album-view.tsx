@@ -290,10 +290,10 @@ export function AlbumView({
                             );
                           }}
                           className="app-card-action inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] transition"
-                          aria-label={`Add an Impasto for ${track.title}`}
+                          aria-label={`Add an impasto for ${track.title}`}
                         >
                           <Plus size={13} strokeWidth={1.8} />
-                          <span className="hidden sm:inline">Impasto</span>
+                          impasto
                         </button>
                         <ChevronDown
                           size={14}

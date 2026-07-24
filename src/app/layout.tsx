@@ -6,17 +6,17 @@ import Providers from "./providers";
 const themeCookieName = "impasto-theme";
 
 export const metadata: Metadata = {
-  title: "Impasto",
+  title: "impasto",
   description: "A private taste log for music and changing opinions.",
   icons: {
     icon: [
       {
-        url: "/logos/white-paint-logo.png",
+        url: "/logos/white-paint-logo.png?v=2",
         type: "image/png",
         sizes: "1024x1024",
       },
     ],
-    shortcut: "/logos/white-paint-logo.png",
+    shortcut: "/logos/white-paint-logo.png?v=2",
   },
 };
 

@@ -70,7 +70,7 @@ export default function LoginPage() {
             className="h-[clamp(3rem,10vw,9rem)] w-[clamp(3rem,10vw,9rem)] translate-y-[clamp(0.8rem,1.55vw,1.55rem)] shrink-0 object-contain"
           />
           <h1 className="text-center text-[clamp(4.75rem,16vw,15rem)] leading-[0.8] font-semibold tracking-[-0.075em] text-white mix-blend-difference">
-            Impasto
+            impasto
           </h1>
           <Image
             src="/logos/black-paint-logo-transparent.png"
