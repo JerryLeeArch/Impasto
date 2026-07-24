@@ -8,6 +8,16 @@ const themeCookieName = "impasto-theme";
 export const metadata: Metadata = {
   title: "Impasto",
   description: "A private taste log for music and changing opinions.",
+  icons: {
+    icon: [
+      {
+        url: "/logos/white-paint-logo.png",
+        type: "image/png",
+        sizes: "1024x1024",
+      },
+    ],
+    shortcut: "/logos/white-paint-logo.png",
+  },
 };
 
 const themeScript = `
