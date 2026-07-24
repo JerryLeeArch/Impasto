@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Impasto",
-  description: "How Impasto collects, uses, and protects your information.",
+  title: "Privacy Policy — impasto",
+  description: "How impasto collects, uses, and protects your information.",
 };
 
 const effectiveDate = "June 20, 2026";
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
           href="/"
           className="text-[13px] font-semibold text-[#6e6e73] transition hover:text-[#1d1d1f]"
         >
-          ← Back to Impasto
+          ← Back to impasto
         </Link>
 
         <h1 className="mt-6 text-3xl font-semibold tracking-tight">
@@ -28,10 +28,10 @@ export default function PrivacyPage() {
         </p>
 
         <p className="mt-6 text-[15px] leading-7 text-[#424245]">
-          Impasto (&ldquo;Impasto&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is
+          impasto (&ldquo;impasto&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is
           a private taste log for music and changing opinions, available
           at impasto.live. This Privacy Policy explains what information we
-          collect, how we use it, and the choices you have. By using Impasto, you
+          collect, how we use it, and the choices you have. By using impasto, you
           agree to this policy.
         </p>
 
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
 
         <Section title="2. How we use your information">
           <ul className="list-disc space-y-1.5 pl-5">
-            <li>To provide and operate Impasto and your account.</li>
+            <li>To provide and operate impasto and your account.</li>
             <li>
               To store, display, and let you manage your logs, rankings, and
               profile.
@@ -101,7 +101,7 @@ export default function PrivacyPage() {
         <Section title="4. How your information is shared">
           <p>
             We share your information only with service providers that help us
-            run Impasto, and only as needed:
+            run impasto, and only as needed:
           </p>
           <ul className="mt-2 list-disc space-y-1.5 pl-5">
             <li>
@@ -155,7 +155,7 @@ export default function PrivacyPage() {
 
         <Section title="8. International transfers">
           <p>
-            Impasto relies on the providers listed above, which may process and
+            impasto relies on the providers listed above, which may process and
             store data in countries other than your own. Where required, such
             transfers are carried out with appropriate safeguards.
           </p>
@@ -163,7 +163,7 @@ export default function PrivacyPage() {
 
         <Section title="9. Children">
           <p>
-            Impasto is not directed to children under the age of 14, and we do not
+            impasto is not directed to children under the age of 14, and we do not
             knowingly collect personal information from them. If you believe a
             child has provided us information, contact us and we will delete it.
           </p>

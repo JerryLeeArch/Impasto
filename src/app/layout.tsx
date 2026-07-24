@@ -6,7 +6,7 @@ import Providers from "./providers";
 const themeCookieName = "impasto-theme";
 
 export const metadata: Metadata = {
-  title: "Impasto",
+  title: "impasto",
   description: "A private taste log for music and changing opinions.",
   icons: {
     icon: [
