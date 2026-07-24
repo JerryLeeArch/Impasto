@@ -720,3 +720,11 @@ button:disabled {
   background: var(--app-panel-bg);
   color: var(--app-faint);
 }
+
+@media (max-width: 639px) {
+  body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  body textarea[class],
+  body select[class] {
+    font-size: 16px;
+  }
+}
