@@ -35,14 +35,14 @@ import {
   type LucideIcon,
   X,
 } from "lucide-react";
-import { AlbumCoverHeader } from "@/components/album-cover-header";
+import { AlbumView } from "@/components/album-view";
 import { ArtistProfileHeader } from "@/components/artist-profile-header";
 import { MusicMetadataPicker } from "@/components/music-metadata-picker";
 import {
   SpotifyPlayerBar,
   type NowPlayingTrack,
 } from "@/components/spotify-player-bar";
-import type { TrackMatch } from "@/lib/metadata/types";
+import type { AlbumTrack, TrackMatch } from "@/lib/metadata/types";
 
 type Rating = "like" | "neutral" | "dislike";
 type MusicKind = "song" | "album";
@@ -624,9 +624,16 @@ export default function Home({
   const errorMessage =
     error ?? (isError ? "Could not load logs." : null);
   const showInitialLoading =
-    viewMode === "feed" && isPending && logs.length === 0;
+    viewMode === "feed" &&
+    !selectedAlbum &&
+    isPending &&
+    logs.length === 0;
   const showEmptyState =
-    viewMode === "feed" && !isPending && !isError && logs.length === 0;
+    viewMode === "feed" &&
+    !selectedAlbum &&
+    !isPending &&
+    !isError &&
+    logs.length === 0;
   const themeLabel = isDarkMode ? "Switch to light mode" : "Switch to dark mode";
   const rankingTitle =
     rankingKind === "song" ? "My Favorite Songs" : "My Favorite Albums";
@@ -848,6 +855,26 @@ export default function Home({
       visibility: log.visibility,
       coverUrl: log.coverUrl ?? "",
       spotifyTrackId: log.spotifyTrackId ?? "",
+    });
+    setIsCreditsFormOpen(false);
+    setComposerMode("layer");
+    setIsComposerOpen(true);
+  }
+
+  function openAlbumTrackComposer(
+    track: AlbumTrack,
+    albumTitle: string,
+    coverUrl: string | null,
+  ) {
+    setForm({
+      ...createEmptyForm(),
+      musicKind: "song",
+      albumTitle,
+      title: track.title,
+      artists: track.artists.join(", "),
+      visibility: profile?.defaultVisibility ?? "private",
+      coverUrl: coverUrl ?? "",
+      spotifyTrackId: track.spotifyTrackId,
     });
     setIsCreditsFormOpen(false);
     setComposerMode("layer");
@@ -1688,11 +1715,15 @@ export default function Home({
             />
           ) : null}
           {viewMode === "feed" && selectedAlbum ? (
-            <AlbumCoverHeader
+            <AlbumView
+              key={`${selectedAlbum.albumTitle}\u0000${selectedAlbum.artists[0] ?? ""}`}
               albumTitle={selectedAlbum.albumTitle}
               artists={selectedAlbum.artists}
               fallbackCoverUrl={albumCoverUrl}
+              logs={logs}
               onBack={closeItemLayers}
+              onPlayTrack={playTrack}
+              onCreateTrackLog={openAlbumTrackComposer}
             />
           ) : null}
           {viewMode === "feed" && selectedItem ? (
@@ -2004,7 +2035,7 @@ export default function Home({
             </div>
           ) : null}
 
-          {viewMode === "feed" ? logs.map((log) => {
+          {viewMode === "feed" && !selectedAlbum ? logs.map((log) => {
             const isMine = log.isMine !== false;
             const ownerLabel = isMine
               ? null
@@ -2162,7 +2193,7 @@ export default function Home({
                 )}
               </div>
 
-              {log.coverUrl && !selectedItem ? (
+              {log.coverUrl && !selectedItem && !selectedAlbum ? (
                 <div className="mt-4 flex items-center gap-3">
                   {log.musicKind === "song" && log.spotifyTrackId ? (
                     <button
@@ -2173,21 +2204,15 @@ export default function Home({
                       className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
                       aria-label={`Play ${log.title} on Spotify`}
                     >
-                      {log.coverUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={log.coverUrl}
-                          alt={`Album art for ${log.title}`}
-                          width={80}
-                          height={80}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="app-cover-fallback flex h-full w-full items-center justify-center bg-[#f5f5f7] text-[#86868b]">
-                          <Music size={24} strokeWidth={1.6} />
-                        </span>
-                      )}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={log.coverUrl}
+                        alt={`Album art for ${log.title}`}
+                        width={80}
+                        height={80}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
                       <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
                         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
                           <Play
@@ -2198,7 +2223,7 @@ export default function Home({
                         </span>
                       </span>
                     </button>
-                  ) : log.coverUrl ? (
+                  ) : (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={log.coverUrl}
@@ -2208,7 +2233,7 @@ export default function Home({
                       className="h-20 w-20 shrink-0 rounded-md object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
                       loading="lazy"
                     />
-                  ) : null}
+                  )}
                 </div>
               ) : null}
 

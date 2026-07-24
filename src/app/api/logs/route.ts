@@ -31,6 +31,22 @@ export async function GET(request: Request) {
     });
   }
 
+  // Album drill-downs show the signed-in user's logs plus public logs from
+  // accepted friends. listFeed enforces that visibility boundary; the exact
+  // comparison below removes loose search matches from titles and notes.
+  if (albumTitle && !itemId) {
+    const normalizedAlbumTitle = normalizeAlbumTitle(albumTitle);
+    const logs = await listFeed(auth.supabase, {
+      scope: "all",
+      search: albumTitle,
+    });
+    return NextResponse.json({
+      logs: logs.filter(
+        (log) => normalizeAlbumTitle(log.albumTitle) === normalizedAlbumTitle,
+      ),
+    });
+  }
+
   return NextResponse.json({
     logs: await listLogs(auth.supabase, {
       itemId,
@@ -53,6 +69,10 @@ export async function POST(request: Request) {
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+function normalizeAlbumTitle(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function parseScope(value: string | null): FeedScope | null {
