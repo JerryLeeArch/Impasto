@@ -408,6 +408,21 @@ button:disabled {
   position: relative;
 }
 
+.app-album-track-row:hover,
+.app-album-track-row:focus-visible {
+  background: color-mix(in srgb, var(--app-text) 3%, var(--app-card-bg));
+}
+
+.app-album-track-details {
+  background: color-mix(in srgb, var(--app-text) 1.5%, var(--app-card-bg));
+}
+
+.app-album-post-row:hover,
+.app-album-post-row:focus-visible {
+  background: color-mix(in srgb, var(--app-text) 3%, transparent);
+  outline: none;
+}
+
 :root[data-theme="dark"] .app-shell .app-card-action,
 .app-shell[data-theme="dark"] .app-card-action {
   background: var(--app-bg);
@@ -673,6 +688,11 @@ button:disabled {
   background: var(--app-card-bg);
   border: 1px solid var(--app-border);
   box-shadow: var(--app-control-shadow);
+}
+
+.app-spotify-player-host > iframe {
+  display: block;
+  border-radius: 12px;
 }
 
 .app-explicit-badge {

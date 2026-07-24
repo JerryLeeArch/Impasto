@@ -6,6 +6,8 @@ import {
   MetadataConfigError,
   MetadataError,
   type AlbumCover,
+  type AlbumDetails,
+  type AlbumTrack,
   type ArtistProfile,
   type TrackMatch,
 } from "./types";
@@ -13,6 +15,7 @@ import { fetchProvider } from "./request";
 
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SEARCH_URL = "https://api.spotify.com/v1/search";
+const ALBUMS_URL = "https://api.spotify.com/v1/albums";
 
 type CachedToken = { token: string; expiresAt: number };
 
@@ -204,6 +207,7 @@ type SpotifyAlbum = {
   name: string;
   images?: SpotifyImage[];
   artists?: { name: string }[];
+  external_urls?: { spotify?: string };
 };
 
 // Looks up the artwork shown above an album's logs. The artist filter is not
@@ -212,6 +216,37 @@ export async function searchSpotifyAlbum(
   albumTitle: string,
   artist: string,
 ): Promise<AlbumCover | null> {
+  const match = await findSpotifyAlbum(albumTitle, artist);
+  if (!match) {
+    return null;
+  }
+
+  return toAlbumCover(match);
+}
+
+export async function searchSpotifyAlbumDetails(
+  albumTitle: string,
+  artist: string,
+): Promise<AlbumDetails | null> {
+  const match = await findSpotifyAlbum(albumTitle, artist);
+  if (!match) {
+    return null;
+  }
+
+  const tracks = await fetchSpotifyAlbumTracks(match.id);
+
+  return {
+    ...toAlbumCover(match),
+    spotifyUrl: parseSpotifyUrl(match.external_urls?.spotify),
+    totalTracks: tracks.length,
+    tracks,
+  };
+}
+
+async function findSpotifyAlbum(
+  albumTitle: string,
+  artist: string,
+): Promise<SpotifyAlbum | null> {
   const trimmedTitle = albumTitle.trim();
   const trimmedArtist = artist.trim();
 
@@ -259,12 +294,112 @@ export async function searchSpotifyAlbum(
   const match =
     items.find((album) => normalizeName(album.name) === normalized) ?? items[0];
 
+  return match;
+}
+
+function toAlbumCover(album: SpotifyAlbum): AlbumCover {
   return {
-    spotifyAlbumId: match.id,
-    name: match.name,
-    imageUrl: pickCoverImage(match.images),
-    artists: (match.artists ?? []).map((a) => a.name).filter(Boolean),
+    spotifyAlbumId: album.id,
+    name: album.name,
+    imageUrl: pickCoverImage(album.images),
+    artists: (album.artists ?? []).map((a) => a.name).filter(Boolean),
   };
+}
+
+type SpotifyAlbumTrack = {
+  id?: string;
+  name?: string;
+  artists?: { name?: string }[];
+  disc_number?: number;
+  track_number?: number;
+  duration_ms?: number;
+  explicit?: boolean;
+  external_urls?: { spotify?: string };
+};
+
+async function fetchSpotifyAlbumTracks(
+  spotifyAlbumId: string,
+): Promise<AlbumTrack[]> {
+  const tracks: AlbumTrack[] = [];
+  let offset = 0;
+  let total = Number.POSITIVE_INFINITY;
+
+  while (offset < total) {
+    const url = new URL(`${ALBUMS_URL}/${spotifyAlbumId}/tracks`);
+    url.searchParams.set("limit", "50");
+    url.searchParams.set("offset", String(offset));
+    setConfiguredMarket(url);
+
+    let token = await getAppToken();
+    let response = await fetchSpotifySearch(url, token);
+    if (response.status === 401) {
+      cachedToken = null;
+      token = await getAppToken();
+      response = await fetchSpotifySearch(url, token);
+    }
+
+    if (!response.ok) {
+      throw new MetadataError("Spotify album track lookup failed.");
+    }
+
+    const data = (await response.json()) as {
+      items?: SpotifyAlbumTrack[];
+      total?: number;
+    };
+    const items = Array.isArray(data.items) ? data.items : [];
+    total = Number.isFinite(data.total) ? Math.max(0, data.total ?? 0) : 0;
+
+    for (const track of items) {
+      if (
+        !track.id ||
+        !/^[A-Za-z0-9]{22}$/.test(track.id) ||
+        !track.name?.trim()
+      ) {
+        continue;
+      }
+
+      tracks.push({
+        spotifyTrackId: track.id,
+        title: track.name.trim(),
+        artists: (track.artists ?? [])
+          .map((artist) => artist.name?.trim() ?? "")
+          .filter(Boolean),
+        discNumber: Math.max(1, track.disc_number ?? 1),
+        trackNumber: Math.max(1, track.track_number ?? tracks.length + 1),
+        durationMs: Math.max(0, track.duration_ms ?? 0),
+        explicit: Boolean(track.explicit),
+        spotifyUrl: parseSpotifyUrl(track.external_urls?.spotify),
+      });
+    }
+
+    if (items.length === 0) {
+      break;
+    }
+    offset += items.length;
+  }
+
+  return tracks;
+}
+
+function setConfiguredMarket(url: URL) {
+  const market = process.env.SPOTIFY_MARKET?.trim().toUpperCase() ?? "";
+  if (/^[A-Z]{2}$/.test(market)) {
+    url.searchParams.set("market", market);
+  }
+}
+
+function parseSpotifyUrl(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "open.spotify.com"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeName(value: string) {

@@ -32,6 +32,23 @@ export type AlbumCover = {
   artists: string[];
 };
 
+export type AlbumTrack = {
+  spotifyTrackId: string;
+  title: string;
+  artists: string[];
+  discNumber: number;
+  trackNumber: number;
+  durationMs: number;
+  explicit: boolean;
+  spotifyUrl: string | null;
+};
+
+export type AlbumDetails = AlbumCover & {
+  spotifyUrl: string | null;
+  totalTracks: number;
+  tracks: AlbumTrack[];
+};
+
 export type TrackMetadata = {
   matches: TrackMatch[];
   credits: Credit[];

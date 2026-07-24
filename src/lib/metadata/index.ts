@@ -4,6 +4,7 @@
 import { fetchGeniusCredits } from "./genius";
 import {
   searchSpotifyAlbum,
+  searchSpotifyAlbumDetails,
   searchSpotifyArtist,
   searchSpotifyTracks,
 } from "./spotify";
@@ -11,6 +12,7 @@ import {
   MetadataConfigError,
   MetadataError,
   type AlbumCover,
+  type AlbumDetails,
   type ArtistProfile,
   type Credit,
   type MetadataProvider,
@@ -20,6 +22,8 @@ import {
 
 export type {
   AlbumCover,
+  AlbumDetails,
+  AlbumTrack,
   ArtistProfile,
   Credit,
   TrackMatch,
@@ -39,6 +43,10 @@ const artworkCacheTtlMs = 30 * 60_000;
 const artworkCache = new Map<
   string,
   { expiresAt: number; value: ArtistProfile | AlbumCover | null }
+>();
+const albumDetailsCache = new Map<
+  string,
+  { expiresAt: number; value: AlbumDetails | null }
 >();
 
 // Both lookups below resolve to null rather than throwing when Spotify is
@@ -89,6 +97,33 @@ export function lookupAlbumCover(albumTitle: string, artist: string) {
     `album:${normalizeKey(albumTitle)}:${normalizeKey(artist)}`,
     () => searchSpotifyAlbum(albumTitle, artist),
   );
+}
+
+export async function lookupAlbumDetails(
+  albumTitle: string,
+  artist: string,
+): Promise<AlbumDetails | null> {
+  const cacheKey = `album-details:${normalizeKey(albumTitle)}:${normalizeKey(artist)}`;
+  const cached = albumDetailsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+  if (cached) {
+    albumDetailsCache.delete(cacheKey);
+  }
+
+  const value = await searchSpotifyAlbumDetails(albumTitle, artist);
+  if (albumDetailsCache.size >= cacheLimit) {
+    const oldestKey = albumDetailsCache.keys().next().value;
+    if (oldestKey) {
+      albumDetailsCache.delete(oldestKey);
+    }
+  }
+  albumDetailsCache.set(cacheKey, {
+    expiresAt: Date.now() + artworkCacheTtlMs,
+    value,
+  });
+  return value;
 }
 
 function normalizeKey(value: string) {
