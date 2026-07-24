@@ -1,24 +1,21 @@
 "use client";
 
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Layers, Music, Users, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { NEXT_PATH_COOKIE } from "@/lib/auth-redirect";
 
-const features: { icon: LucideIcon; title: string; body: string }[] = [
+const features = [
   {
-    icon: Music,
     title: "Log what you love",
     body: "Songs and albums — with ratings, notes, and credits.",
   },
   {
-    icon: Layers,
     title: "Watch it evolve",
     body: "Add new layers as your opinion changes, and keep the history.",
   },
   {
-    icon: Users,
     title: "Share with friends",
     body: "Add friends and follow each other's evolving taste.",
   },
@@ -55,58 +52,93 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f5f5f7] px-6 py-12 text-[#1d1d1f]">
-      <section className="w-full max-w-md rounded-3xl border border-black/5 bg-white px-8 py-10 shadow-[0_24px_80px_rgba(0,0,0,0.09)]">
-        <h1 className="text-3xl font-semibold tracking-tight">Impasto</h1>
-        <p className="mt-2 text-[15px] font-medium text-[#1d1d1f]">
-          A canvas for your evolving taste.
-        </p>
-        <p className="mt-2 text-sm leading-6 text-[#6e6e73]">
-          A private journal for the things you love. Capture your take today,
-          then watch your opinions build up in layers over time — like paint on a
-          canvas.
-        </p>
+    <main
+      className="grid min-h-screen min-h-[100svh] grid-rows-[auto_1fr_auto] overflow-hidden"
+      style={{
+        background:
+          "linear-gradient(to right, #000 0%, #000 50%, #fff 50%, #fff 100%)",
+      }}
+    >
+      <header className="px-3 pt-[clamp(1.5rem,4vh,3.5rem)]">
+        <div className="flex items-center justify-center gap-[clamp(0.5rem,2.25vw,2.25rem)]">
+          <Image
+            src="/logos/white-paint-logo.png"
+            alt=""
+            width={1024}
+            height={1024}
+            priority
+            className="h-[clamp(3rem,10vw,9rem)] w-[clamp(3rem,10vw,9rem)] translate-y-[clamp(0.8rem,1.55vw,1.55rem)] shrink-0 object-contain"
+          />
+          <h1 className="text-center text-[clamp(4.75rem,16vw,15rem)] leading-[0.8] font-semibold tracking-[-0.075em] text-white mix-blend-difference">
+            Impasto
+          </h1>
+          <Image
+            src="/logos/black-paint-logo-transparent.png"
+            alt=""
+            width={1254}
+            height={1254}
+            priority
+            className="h-[clamp(3rem,10vw,9rem)] w-[clamp(3rem,10vw,9rem)] translate-y-[clamp(0.8rem,1.55vw,1.55rem)] shrink-0 object-contain"
+          />
+        </div>
+      </header>
 
-        <ul className="mt-7 space-y-4">
-          {features.map(({ icon: Icon, title, body }) => (
-            <li key={title} className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f5f7] text-[#1d1d1f]">
-                <Icon size={16} strokeWidth={1.8} />
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-[#1d1d1f]">
+      <div className="grid min-h-0 grid-cols-2 items-center">
+        <section className="flex justify-end px-[clamp(1rem,5vw,6rem)] py-8 text-white">
+          <div className="w-full max-w-xl text-right">
+            <h2 className="text-[clamp(1.25rem,2.2vw,2.25rem)] leading-tight font-semibold tracking-[-0.025em]">
+              A canvas for your evolving taste.
+            </h2>
+            <p className="mt-5 text-[clamp(0.75rem,1.2vw,1rem)] leading-relaxed text-white/70">
+              Share your music taste with your friends. Capture your feelings
+              today, then watch your opinions build up in layers over time — like
+              paint on a canvas.
+            </p>
+          </div>
+        </section>
+
+        <section className="px-[clamp(1rem,5vw,6rem)] py-8 text-black">
+          <ul className="w-full max-w-xl space-y-[clamp(1rem,3vh,2rem)]">
+            {features.map(({ title, body }) => (
+              <li key={title}>
+                <h2 className="text-[clamp(0.875rem,1.35vw,1.25rem)] leading-tight font-semibold tracking-[-0.015em]">
                   {title}
-                </span>
-                <span className="block text-[13px] leading-5 text-[#6e6e73]">
+                </h2>
+                <p className="mt-2 text-[clamp(0.7rem,1.05vw,0.95rem)] leading-relaxed text-black/60">
                   {body}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
 
+      <footer className="px-6 pb-[clamp(1.5rem,4vh,3.5rem)] text-center text-white mix-blend-difference">
         <button
           type="button"
           onClick={signInWithGoogle}
           disabled={isLoading}
-          className="mt-8 flex h-11 w-full items-center justify-center rounded-full bg-[#1d1d1f] px-5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-wait disabled:opacity-60"
+          className="mx-auto flex h-12 w-full max-w-xs items-center justify-center rounded-full border border-current bg-transparent px-6 text-sm font-semibold transition-opacity hover:opacity-65 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current disabled:cursor-wait disabled:opacity-45"
         >
           {isLoading ? "Connecting…" : "Continue with Google"}
         </button>
         {error ? (
-          <p className="mt-4 text-center text-xs text-[#c9342f]" role="alert">
+          <p className="mt-3 text-xs font-semibold" role="alert">
             {error}
           </p>
         ) : null}
-        <p className="mt-6 text-center text-xs leading-5 text-[#86868b]">
+        <p className="mt-4 text-xs leading-5 opacity-65">
           Your archive is private by default. You choose what friends can see.
         </p>
-        <p className="mt-3 text-center text-xs leading-5 text-[#86868b]">
-          <a href="/privacy" className="underline transition hover:text-[#1d1d1f]">
+        <p className="mt-1 text-xs leading-5">
+          <a
+            href="/privacy"
+            className="underline underline-offset-4 transition-opacity hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current"
+          >
             Privacy Policy
           </a>
         </p>
-      </section>
+      </footer>
     </main>
   );
 }

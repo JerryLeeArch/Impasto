@@ -684,6 +684,22 @@ button:disabled {
   background: var(--app-primary-hover);
 }
 
+.app-rating-badge[data-rating="like"] {
+  color: #9bd36a;
+}
+
+.app-rating-badge[data-rating="neutral"] {
+  color: #d6a84f;
+}
+
+.app-rating-badge[data-rating="dislike"] {
+  color: #ff453a;
+}
+
+.app-rating-dot {
+  background: currentColor;
+}
+
 .app-player-bar {
   background: var(--app-card-bg);
   border: 1px solid var(--app-border);

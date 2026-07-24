@@ -9,6 +9,7 @@ import {
   type AlbumDetails,
   type AlbumTrack,
   type ArtistProfile,
+  type TrackArtwork,
   type TrackMatch,
 } from "./types";
 import { fetchProvider } from "./request";
@@ -16,6 +17,7 @@ import { fetchProvider } from "./request";
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SEARCH_URL = "https://api.spotify.com/v1/search";
 const ALBUMS_URL = "https://api.spotify.com/v1/albums";
+const TRACKS_URL = "https://api.spotify.com/v1/tracks";
 
 type CachedToken = { token: string; expiresAt: number };
 
@@ -141,6 +143,42 @@ export async function searchSpotifyTracks(
       releaseDate: track.album?.release_date ?? null,
       explicit: Boolean(track.explicit),
     }));
+}
+
+export async function getSpotifyTrackArtwork(
+  spotifyTrackId: string,
+): Promise<TrackArtwork | null> {
+  if (!/^[A-Za-z0-9]{22}$/.test(spotifyTrackId)) {
+    return null;
+  }
+
+  const url = new URL(`${TRACKS_URL}/${spotifyTrackId}`);
+  setConfiguredMarket(url);
+
+  let token = await getAppToken();
+  let response = await fetchSpotifySearch(url, token);
+  if (response.status === 401) {
+    cachedToken = null;
+    token = await getAppToken();
+    response = await fetchSpotifySearch(url, token);
+  }
+
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new MetadataError("Spotify track artwork lookup failed.");
+  }
+
+  const track = (await response.json()) as SpotifyTrack;
+  if (track.id !== spotifyTrackId) {
+    return null;
+  }
+
+  return {
+    spotifyTrackId: track.id,
+    imageUrl: pickCoverImage(track.album?.images),
+  };
 }
 
 type SpotifyArtist = {

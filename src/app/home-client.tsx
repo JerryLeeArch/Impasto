@@ -38,11 +38,16 @@ import {
 import { AlbumView } from "@/components/album-view";
 import { ArtistProfileHeader } from "@/components/artist-profile-header";
 import { MusicMetadataPicker } from "@/components/music-metadata-picker";
+import { fetchArtwork } from "@/components/use-artwork";
 import {
   SpotifyPlayerBar,
   type NowPlayingTrack,
 } from "@/components/spotify-player-bar";
-import type { AlbumTrack, TrackMatch } from "@/lib/metadata/types";
+import type {
+  AlbumTrack,
+  TrackArtwork,
+  TrackMatch,
+} from "@/lib/metadata/types";
 
 type Rating = "like" | "neutral" | "dislike";
 type MusicKind = "song" | "album";
@@ -662,6 +667,10 @@ export default function Home({
     setIsProfileOpen(true);
   }
 
+  function closeProfile() {
+    setIsProfileOpen(false);
+  }
+
   async function handleUsernameSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isProfileSaving || isUsernameLocked) {
@@ -1036,6 +1045,21 @@ export default function Home({
     window.localStorage.setItem(themeStorageKey, theme);
     document.cookie = `${themeStorageKey}=${theme}; path=/; max-age=${themeCookieMaxAge}; SameSite=Lax`;
   }, [isDarkMode, isThemeReady]);
+
+  useEffect(() => {
+    if (!isProfileOpen) {
+      return;
+    }
+
+    function handleProfileKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeProfile();
+      }
+    }
+
+    window.addEventListener("keydown", handleProfileKeyDown);
+    return () => window.removeEventListener("keydown", handleProfileKeyDown);
+  }, [isProfileOpen]);
 
   // Clicking an artist opens a dedicated artist view (pushed onto history so
   // Back returns to the list) rather than typing the name into the search box.
@@ -2132,12 +2156,20 @@ export default function Home({
                           className="app-muted-link app-badge inline-flex items-center gap-1.5 text-left text-[12px] font-semibold text-[#6e6e73] transition hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
                           aria-label={`Show songs on ${log.albumTitle}`}
                         >
-                          <Disc3 size={13} strokeWidth={1.7} />
+                          <AlbumBadgeArtwork
+                            coverUrl={log.coverUrl}
+                            albumTitle={log.albumTitle}
+                            spotifyTrackId={log.spotifyTrackId}
+                          />
                           {log.albumTitle}
                         </button>
                       ) : (
                         <span className="app-badge inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6e6e73]">
-                          <Disc3 size={13} strokeWidth={1.7} />
+                          <AlbumBadgeArtwork
+                            coverUrl={log.coverUrl}
+                            albumTitle={log.albumTitle}
+                            spotifyTrackId={log.spotifyTrackId}
+                          />
                           {log.albumTitle}
                         </span>
                       )
@@ -2736,15 +2768,30 @@ export default function Home({
       ) : null}
 
       {isProfileOpen ? (
-        <div className="app-overlay fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-[#1d1d1f]/24 px-3 py-6 backdrop-blur-sm sm:py-8">
-          <div className="app-composer w-full max-w-md overflow-y-auto rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6">
+        <div
+          className="app-overlay fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-[#1d1d1f]/24 px-3 py-6 backdrop-blur-sm sm:py-8"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeProfile();
+            }
+          }}
+        >
+          <div
+            className="app-composer w-full max-w-md overflow-y-auto rounded-lg border border-[#d2d2d7]/80 bg-white p-5 shadow-[0_30px_90px_rgba(0,0,0,0.18)] sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-dialog-title"
+          >
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="app-title text-[24px] font-semibold leading-tight tracking-normal text-[#1d1d1f]">
+              <h2
+                id="profile-dialog-title"
+                className="app-title text-[24px] font-semibold leading-tight tracking-normal text-[#1d1d1f]"
+              >
                 Profile
               </h2>
               <button
                 type="button"
-                onClick={() => setIsProfileOpen(false)}
+                onClick={closeProfile}
                 className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
                 aria-label="Close profile"
               >
@@ -3127,14 +3174,50 @@ function RatingBadge({ rating }: { rating: Rating }) {
   const option = ratingOptions.find((item) => item.value === rating);
 
   return (
-    <span className="app-rating-badge inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#424245]">
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          option?.dotClassName ?? "bg-[#86868b]"
-        }`}
-      />
+    <span
+      className="app-rating-badge inline-flex items-center gap-1.5 text-[12px] font-semibold"
+      data-rating={rating}
+    >
+      <span className="app-rating-dot h-1.5 w-1.5 rounded-full" />
       {option?.label ?? rating}
     </span>
+  );
+}
+
+function AlbumBadgeArtwork({
+  coverUrl,
+  albumTitle,
+  spotifyTrackId,
+}: {
+  coverUrl: string | null;
+  albumTitle: string;
+  spotifyTrackId: string | null;
+}) {
+  const { data: trackArtwork } = useQuery<TrackArtwork | null>({
+    queryKey: ["artwork", "track", spotifyTrackId],
+    queryFn: () =>
+      fetchArtwork<TrackArtwork>({
+        type: "track",
+        id: spotifyTrackId ?? "",
+      }),
+    enabled: !coverUrl && Boolean(spotifyTrackId),
+    staleTime: 30 * 60_000,
+  });
+  const resolvedCoverUrl = coverUrl ?? trackArtwork?.imageUrl ?? null;
+
+  return resolvedCoverUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={resolvedCoverUrl}
+      alt=""
+      title={`Album art for ${albumTitle}`}
+      width={14}
+      height={14}
+      className="h-3.5 w-3.5 shrink-0 rounded-[3px] object-cover shadow-[0_1px_3px_rgba(0,0,0,0.16)]"
+      loading="lazy"
+    />
+  ) : (
+    <Disc3 size={13} strokeWidth={1.7} />
   );
 }
 
