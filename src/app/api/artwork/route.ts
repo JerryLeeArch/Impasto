@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedClient } from "@/lib/supabase/auth";
-import { lookupAlbumCover, lookupArtistProfile } from "@/lib/metadata";
+import {
+  lookupAlbumCover,
+  lookupArtistProfile,
+  lookupTrackArtwork,
+} from "@/lib/metadata";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +15,7 @@ const lookupBuckets = new Map<string, { count: number; resetAt: number }>();
 
 // GET /api/artwork?type=artist&name=...
 // GET /api/artwork?type=album&title=...&artist=...
+// GET /api/artwork?type=track&id=...
 // Backs the headers on the artist and album views. A miss returns
 // { artwork: null } rather than an error so the view still renders its logs.
 export async function GET(request: Request) {
@@ -24,22 +29,25 @@ export async function GET(request: Request) {
   const name = (searchParams.get("name") ?? "").trim();
   const title = (searchParams.get("title") ?? "").trim();
   const artist = (searchParams.get("artist") ?? "").trim();
+  const id = (searchParams.get("id") ?? "").trim();
 
-  if (type !== "artist" && type !== "album") {
+  if (type !== "artist" && type !== "album" && type !== "track") {
     return NextResponse.json(
-      { error: "Type must be artist or album." },
+      { error: "Type must be artist, album, or track." },
       { status: 400 },
     );
   }
 
-  const required = type === "artist" ? name : title;
+  const required = type === "artist" ? name : type === "album" ? title : id;
   if (!required) {
     return NextResponse.json(
       {
         error:
           type === "artist"
             ? "An artist name is required."
-            : "An album title is required.",
+            : type === "album"
+              ? "An album title is required."
+              : "A Spotify track ID is required.",
       },
       { status: 400 },
     );
@@ -47,6 +55,12 @@ export async function GET(request: Request) {
 
   if (name.length > 80 || title.length > 160 || artist.length > 80) {
     return NextResponse.json({ error: "Query is too long." }, { status: 400 });
+  }
+  if (type === "track" && !/^[A-Za-z0-9]{22}$/.test(id)) {
+    return NextResponse.json(
+      { error: "Spotify track ID is invalid." },
+      { status: 400 },
+    );
   }
 
   const rateLimit = consumeLookup(auth.user.id);
@@ -64,7 +78,9 @@ export async function GET(request: Request) {
     const artwork =
       type === "artist"
         ? await lookupArtistProfile(name)
-        : await lookupAlbumCover(title, artist);
+        : type === "album"
+          ? await lookupAlbumCover(title, artist)
+          : await lookupTrackArtwork(id);
 
     return NextResponse.json({ artwork });
   } catch (error) {

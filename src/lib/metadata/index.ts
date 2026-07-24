@@ -3,6 +3,7 @@
 
 import { fetchGeniusCredits } from "./genius";
 import {
+  getSpotifyTrackArtwork,
   searchSpotifyAlbum,
   searchSpotifyAlbumDetails,
   searchSpotifyArtist,
@@ -16,6 +17,7 @@ import {
   type ArtistProfile,
   type Credit,
   type MetadataProvider,
+  type TrackArtwork,
   type TrackMatch,
   type TrackMetadata,
 } from "./types";
@@ -26,6 +28,7 @@ export type {
   AlbumTrack,
   ArtistProfile,
   Credit,
+  TrackArtwork,
   TrackMatch,
   TrackMetadata,
 } from "./types";
@@ -42,7 +45,10 @@ const lookupCache = new Map<
 const artworkCacheTtlMs = 30 * 60_000;
 const artworkCache = new Map<
   string,
-  { expiresAt: number; value: ArtistProfile | AlbumCover | null }
+  {
+    expiresAt: number;
+    value: ArtistProfile | AlbumCover | TrackArtwork | null;
+  }
 >();
 const albumDetailsCache = new Map<
   string,
@@ -51,7 +57,7 @@ const albumDetailsCache = new Map<
 
 // Both lookups below resolve to null rather than throwing when Spotify is
 // unconfigured or unreachable, so the view still renders its logs without art.
-async function lookupArtwork<T extends ArtistProfile | AlbumCover>(
+async function lookupArtwork<T extends ArtistProfile | AlbumCover | TrackArtwork>(
   cacheKey: string,
   search: () => Promise<T | null>,
 ): Promise<T | null> {
@@ -96,6 +102,12 @@ export function lookupAlbumCover(albumTitle: string, artist: string) {
   return lookupArtwork(
     `album:${normalizeKey(albumTitle)}:${normalizeKey(artist)}`,
     () => searchSpotifyAlbum(albumTitle, artist),
+  );
+}
+
+export function lookupTrackArtwork(spotifyTrackId: string) {
+  return lookupArtwork(`track:${spotifyTrackId}`, () =>
+    getSpotifyTrackArtwork(spotifyTrackId),
   );
 }
 

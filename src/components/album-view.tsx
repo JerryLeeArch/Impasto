@@ -364,12 +364,11 @@ export function AlbumView({
                                           {post.body}
                                         </p>
                                         <div className="app-muted mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium">
-                                          <span className="inline-flex items-center gap-1.5">
-                                            <span
-                                              className={`h-1.5 w-1.5 rounded-full ${ratingDotClassName(
-                                                post.rating,
-                                              )}`}
-                                            />
+                                          <span
+                                            className="app-rating-badge inline-flex items-center gap-1.5"
+                                            data-rating={post.rating}
+                                          >
+                                            <span className="app-rating-dot h-1.5 w-1.5 rounded-full" />
                                             {formatRating(post.rating)}
                                           </span>
                                           {post.updatedAt !==
@@ -454,12 +453,4 @@ function formatRating(rating: AlbumViewLog["rating"]) {
     : rating === "dislike"
       ? "Dislike"
       : "Neutral";
-}
-
-function ratingDotClassName(rating: AlbumViewLog["rating"]) {
-  return rating === "like"
-    ? "bg-[#9bd36a]"
-    : rating === "dislike"
-      ? "bg-[#ff453a]"
-      : "bg-[#d6a84f]";
 }

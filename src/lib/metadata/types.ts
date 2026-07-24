@@ -18,6 +18,11 @@ export type TrackMatch = {
   explicit: boolean;
 };
 
+export type TrackArtwork = {
+  spotifyTrackId: string;
+  imageUrl: string | null;
+};
+
 export type ArtistProfile = {
   spotifyArtistId: string;
   name: string;
