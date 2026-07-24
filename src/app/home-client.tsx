@@ -1590,7 +1590,7 @@ export default function Home({
                 aria-label="Go to home"
               >
                 <h1 className="app-title text-[24px] font-semibold leading-none tracking-normal text-[#1d1d1f] sm:text-[28px]">
-                  Impasto
+                  impasto
                 </h1>
                 <p className="app-subtitle mt-1 text-[10px] font-medium leading-3 text-[#6e6e73] sm:text-[12px] sm:leading-4">
                   Your take, over time.
@@ -2185,32 +2185,34 @@ export default function Home({
                   </div>
                 </div>
                 {isMine ? (
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                     <button
                       type="button"
                       onClick={() => openLayerComposer(log)}
-                      className="app-card-action inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)]"
+                      className="app-card-action order-2 inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent bg-white px-2.5 text-[12px] font-semibold text-[#1d1d1f] shadow-[0_2px_6px_rgba(0,0,0,0.07)] transition hover:shadow-[0_3px_8px_rgba(0,0,0,0.1)] sm:order-1"
                       aria-label={`Add layer for ${log.title}`}
                     >
                       <Plus size={13} strokeWidth={1.8} />
-                      Impasto
+                      impasto
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditComposer(log)}
-                      className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-                      aria-label={`Edit ${log.title}`}
-                    >
-                      <Pencil size={15} strokeWidth={1.7} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(log.id)}
-                      className="app-delete-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36]"
-                      aria-label={`Delete ${log.title}`}
-                    >
-                      <Trash2 size={15} strokeWidth={1.7} />
-                    </button>
+                    <div className="order-1 flex items-center gap-1 sm:order-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditComposer(log)}
+                        className="app-icon-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+                        aria-label={`Edit ${log.title}`}
+                      >
+                        <Pencil size={15} strokeWidth={1.7} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(log.id)}
+                        className="app-delete-button inline-flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition hover:bg-[#fff7f3] hover:text-[#a35f36]"
+                        aria-label={`Delete ${log.title}`}
+                      >
+                        <Trash2 size={15} strokeWidth={1.7} />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
@@ -2220,7 +2222,7 @@ export default function Home({
                     aria-label={`Create your log for ${log.title}`}
                   >
                     <Plus size={13} strokeWidth={1.8} />
-                    Impasto
+                    impasto
                   </button>
                 )}
               </div>
