@@ -3,6 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #1d1d1f;
+  --scrollbar-thumb: rgba(29, 29, 31, 0.3);
+  --scrollbar-thumb-hover: rgba(29, 29, 31, 0.5);
 }
 
 @theme inline {
@@ -19,6 +21,28 @@
 html {
   min-height: 100%;
   background: var(--background);
+  scrollbar-color: var(--scrollbar-thumb) var(--background);
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+html::-webkit-scrollbar {
+  width: 10px;
+}
+
+html::-webkit-scrollbar-track,
+html::-webkit-scrollbar-corner {
+  background: var(--background);
+}
+
+html::-webkit-scrollbar-thumb {
+  border: 2px solid var(--background);
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
 body {
@@ -57,6 +81,8 @@ button:disabled {
 :root[data-theme="dark"] {
   --background: #000000;
   --foreground: #f5f5f7;
+  --scrollbar-thumb: rgba(245, 245, 247, 0.34);
+  --scrollbar-thumb-hover: rgba(245, 245, 247, 0.56);
 }
 
 :root[data-theme="dark"] ::selection {

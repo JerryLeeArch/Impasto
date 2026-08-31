@@ -1751,7 +1751,7 @@ export default function Home({
                 placeholder={
                   viewMode === "ranking"
                     ? "My Favorite Ranking"
-                    : "Search titles, notes, or artists"
+                    : "Search titles, notes, artists, or credits"
                 }
                 className="app-search-input h-9 w-full rounded-full border border-transparent bg-white pl-9 pr-9 text-[13px] font-normal text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.075)] outline-none transition placeholder:text-[#86868b] focus:shadow-[0_10px_30px_rgba(0,0,0,0.16)] sm:text-[14px]"
               />
@@ -3645,6 +3645,7 @@ function matchesFeedSearch(log: TasteLog, search: string) {
     log.albumTitle,
     ...log.genres,
     ...log.artists,
+    ...log.credits.flatMap((credit) => credit.names),
   ].some((value) => normalizeCacheText(value).includes(query));
 }
 
