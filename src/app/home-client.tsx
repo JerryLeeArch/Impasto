@@ -2361,50 +2361,6 @@ export default function Home({
                 )}
               </div>
 
-              {log.coverUrl && !selectedItem && !selectedAlbum ? (
-                <div className="mt-4 flex items-center gap-3">
-                  {log.musicKind === "song" && log.spotifyTrackId ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        playTrack(log.spotifyTrackId as string, log.title)
-                      }
-                      className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
-                      aria-label={`Play ${log.title} on Spotify`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={log.coverUrl}
-                        alt={`Album art for ${log.title}`}
-                        width={80}
-                        height={80}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                      <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
-                          <Play
-                            size={15}
-                            strokeWidth={2}
-                            className="ml-0.5 fill-current"
-                          />
-                        </span>
-                      </span>
-                    </button>
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={log.coverUrl}
-                      alt={`Album art for ${log.title}`}
-                      width={80}
-                      height={80}
-                      className="h-20 w-20 shrink-0 rounded-md object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
-                      loading="lazy"
-                    />
-                  )}
-                </div>
-              ) : null}
-
               {log.credits.length > 0 && expandedCreditIds.has(log.id) ? (
                 <div className="app-credit-panel mt-4 grid gap-2 rounded-lg px-3 py-3">
                   {log.credits.map((credit) => (

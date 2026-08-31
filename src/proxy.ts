@@ -35,6 +35,21 @@ export async function proxy(request: NextRequest) {
     pathname === "/privacy" ||
     pathname.startsWith("/auth/callback");
 
+  // Supabase sends provider failures back to the configured Site URL with
+  // verbose OAuth parameters. Do not preserve that query inside `next`, which
+  // duplicates the full error URL and makes the address unnecessarily long.
+  if (
+    !user &&
+    pathname === "/" &&
+    request.nextUrl.searchParams.has("error")
+  ) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    loginUrl.searchParams.set("error", "oauth_callback_failed");
+    return NextResponse.redirect(loginUrl);
+  }
+
   if (!user && pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
