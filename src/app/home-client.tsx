@@ -11,7 +11,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
@@ -85,6 +90,12 @@ type TasteLog = {
   isMine?: boolean;
   ownerUsername?: string | null;
   ownerDisplayName?: string | null;
+};
+
+type FeedPage = {
+  logs: TasteLog[];
+  nextCursor: string | null;
+  hasMore: boolean;
 };
 
 type FriendSummary = {
@@ -236,9 +247,9 @@ const dateFormatter = new Intl.DateTimeFormat("en", {
 
 export default function Home({
   // Server-rendered default feed (scope "all", no search).
-  initialLogs,
+  initialFeedPage,
 }: {
-  initialLogs: TasteLog[];
+  initialFeedPage?: FeedPage;
 }) {
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>("feed");
@@ -284,6 +295,7 @@ export default function Home({
   const [friendNotice, setFriendNotice] = useState<string | null>(null);
   const [isFriendSaving, setIsFriendSaving] = useState(false);
   const pendingScrollRef = useRef<number | null>(null);
+  const feedLoadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 180);
   const trimmedSearch = debouncedSearch.trim();
@@ -300,28 +312,82 @@ export default function Home({
   const debouncedCreditQuery = useDebouncedValue(activeCreditQuery, 140);
   const debouncedCandidateSearch = useDebouncedValue(candidateSearch, 180);
 
+  const isPaginatedFeed = !selectedItem && !selectedAlbum;
+  const activeFeedSearch = selectedArtist ?? trimmedSearch;
+  const feedQueryKey = selectedArtist
+    ? ["logs", "artist", feedScope, selectedArtist]
+    : ["logs", "feed", feedScope, trimmedSearch];
+  const feedQuery = useInfiniteQuery({
+    queryKey: feedQueryKey,
+    enabled: viewMode === "feed" && isPaginatedFeed,
+    initialPageParam: null as string | null,
+    initialData:
+      !selectedArtist &&
+      feedScope === "all" &&
+      !trimmedSearch &&
+      initialFeedPage
+        ? { pages: [initialFeedPage], pageParams: [null] }
+        : undefined,
+    queryFn: async ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ scope: feedScope });
+
+      if (activeFeedSearch) {
+        params.set("search", activeFeedSearch);
+      }
+      if (pageParam) {
+        params.set("cursor", pageParam);
+      }
+
+      const response = await fetch(`/api/logs?${params.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load logs.");
+      }
+
+      const page = (await response.json()) as FeedPage;
+      if (!Array.isArray(page.logs)) {
+        throw new Error("Could not load logs.");
+      }
+      return page;
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore && lastPage.nextCursor
+        ? lastPage.nextCursor
+        : undefined,
+  });
+
+  const feedLogs = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: TasteLog[] = [];
+
+    for (const page of feedQuery.data?.pages ?? []) {
+      for (const log of page.logs) {
+        if (!seen.has(log.id)) {
+          seen.add(log.id);
+          merged.push(log);
+        }
+      }
+    }
+
+    return merged;
+  }, [feedQuery.data]);
   const {
-    data: logs = [],
-    isPending,
-    isError,
-  } = useQuery({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+  } = feedQuery;
+
+  const drilldownQuery = useQuery({
     queryKey: selectedItem
       ? ["logs", "item", selectedItem.id]
       : selectedAlbum
         ? ["logs", "album", selectedAlbum.albumTitle]
-        : selectedArtist
-          ? ["logs", "artist", feedScope, selectedArtist]
-      : ["logs", "feed", feedScope, trimmedSearch],
-    enabled: viewMode === "feed",
-    // Only the server-rendered combination is seeded.
-    initialData:
-      !selectedItem &&
-      !selectedAlbum &&
-      !selectedArtist &&
-      feedScope === "all" &&
-      !trimmedSearch
-        ? initialLogs
-        : undefined,
+        : ["logs", "drilldown", "idle"],
+    enabled: viewMode === "feed" && !isPaginatedFeed,
     queryFn: async () => {
       const params = new URLSearchParams();
 
@@ -329,14 +395,8 @@ export default function Home({
         params.set("itemId", selectedItem.id);
       } else if (selectedAlbum) {
         params.set("albumTitle", selectedAlbum.albumTitle);
-      } else if (selectedArtist) {
-        params.set("scope", feedScope);
-        params.set("search", selectedArtist);
       } else {
-        params.set("scope", feedScope);
-        if (trimmedSearch) {
-          params.set("search", trimmedSearch);
-        }
+        return [] as TasteLog[];
       }
 
       const response = await fetch(`/api/logs?${params.toString()}`, {
@@ -350,21 +410,14 @@ export default function Home({
       const data = (await response.json()) as { logs: TasteLog[] };
       return data.logs;
     },
-    placeholderData: (previousData: TasteLog[] | undefined) => {
-      // Keep the current list while the next scope/search loads.
-      if (!selectedItem && !selectedAlbum) {
-        return previousData;
-      }
-
-      const cached = queryClient.getQueriesData<TasteLog[]>({
-        queryKey: ["logs"],
-      });
+    placeholderData: () => {
+      const cached = queryClient.getQueriesData({ queryKey: ["logs"] });
       const seen = new Set<string>();
       const matches: TasteLog[] = [];
       const selectedAlbumKey = selectedAlbum?.albumTitle.toLowerCase();
 
       for (const [, data] of cached) {
-        for (const log of data ?? []) {
+        for (const log of extractCachedLogs(data)) {
           const isMatch = selectedItem
             ? log.itemId === selectedItem.id
             : log.albumTitle.toLowerCase() === selectedAlbumKey;
@@ -379,6 +432,17 @@ export default function Home({
       return matches.length > 0 ? matches : undefined;
     },
   });
+
+  const logs = useMemo(
+    () => (isPaginatedFeed ? feedLogs : (drilldownQuery.data ?? [])),
+    [drilldownQuery.data, feedLogs, isPaginatedFeed],
+  );
+  const isPending = isPaginatedFeed
+    ? feedQuery.isPending
+    : drilldownQuery.isPending;
+  const isError = isPaginatedFeed
+    ? feedQuery.isError && !isFetchNextPageError
+    : drilldownQuery.isError;
 
   const isDrilldown = Boolean(selectedItem || selectedAlbum || selectedArtist);
 
@@ -644,6 +708,42 @@ export default function Home({
     rankingKind === "song" ? "My Favorite Songs" : "My Favorite Albums";
   const rankingEmptyLabel =
     rankingKind === "song" ? "No favorite songs yet." : "No favorite albums yet.";
+
+  useEffect(() => {
+    const target = feedLoadMoreRef.current;
+    if (
+      !target ||
+      viewMode !== "feed" ||
+      !isPaginatedFeed ||
+      !hasNextPage ||
+      isFetchingNextPage ||
+      isFetchNextPageError ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+
+    let requested = false;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && !requested) {
+          requested = true;
+          void fetchNextPage();
+        }
+      },
+      { rootMargin: "800px 0px" },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [
+    fetchNextPage,
+    hasNextPage,
+    isFetchNextPageError,
+    isFetchingNextPage,
+    isPaginatedFeed,
+    viewMode,
+  ]);
 
   function openCreateComposer() {
     setForm({
@@ -1327,6 +1427,37 @@ export default function Home({
     setIsCreditsFormOpen(false);
   }
 
+  function upsertLogCaches(log: TasteLog) {
+    const ownLog: TasteLog = {
+      ...log,
+      isMine: true,
+      ownerUsername: null,
+      ownerDisplayName: null,
+    };
+
+    for (const query of queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["logs"] })) {
+      const current = query.state.data;
+      const next = upsertCachedLog(current, query.queryKey, ownLog);
+      if (next !== current) {
+        queryClient.setQueryData(query.queryKey, next);
+      }
+    }
+  }
+
+  function removeLogFromCaches(id: string) {
+    for (const query of queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["logs"] })) {
+      const current = query.state.data;
+      const next = removeCachedLog(current, id);
+      if (next !== current) {
+        queryClient.setQueryData(query.queryKey, next);
+      }
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -1358,16 +1489,19 @@ export default function Home({
         },
       );
 
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json()) as {
+        log?: TasteLog;
+        error?: string;
+      };
 
-      if (!response.ok) {
+      if (!response.ok || !data.log) {
         throw new Error(data.error ?? "Could not save the log.");
       }
 
+      upsertLogCaches(data.log);
       setIsComposerOpen(false);
       setForm(createEmptyForm());
       setIsCreditsFormOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["logs"] });
       await queryClient.invalidateQueries({ queryKey: ["ranking"] });
       await queryClient.invalidateQueries({ queryKey: ["music-items"] });
     } catch (saveError) {
@@ -1395,7 +1529,7 @@ export default function Home({
         throw new Error("Could not delete the log.");
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["logs"] });
+      removeLogFromCaches(id);
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
@@ -2326,6 +2460,35 @@ export default function Home({
             </article>
             );
           }) : null}
+
+          {viewMode === "feed" && isPaginatedFeed && logs.length > 0 ? (
+            <div
+              ref={feedLoadMoreRef}
+              className="app-muted flex min-h-16 items-center justify-center text-[13px] text-[#86868b]"
+            >
+              {isFetchingNextPage ? (
+                <div
+                  className="flex items-center gap-2"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Loader2 className="animate-spin" size={17} strokeWidth={1.7} />
+                  <span>Loading more…</span>
+                </div>
+              ) : isFetchNextPageError ? (
+                <div className="flex flex-col items-center gap-2 py-3">
+                  <p role="alert">Could not load more logs.</p>
+                  <button
+                    type="button"
+                    onClick={() => void fetchNextPage()}
+                    className="app-secondary-button rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#6e6e73] shadow-[0_4px_14px_rgba(0,0,0,0.08)] transition hover:text-[#1d1d1f]"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
 
@@ -3370,6 +3533,167 @@ function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number) {
 
 function reindexRanking(items: FavoriteRankingEntry[]) {
   return items.map((item, index) => ({ ...item, rank: index + 1 }));
+}
+
+function extractCachedLogs(data: unknown): TasteLog[] {
+  if (Array.isArray(data)) {
+    return data as TasteLog[];
+  }
+
+  if (!data || typeof data !== "object") {
+    return [];
+  }
+
+  const pages = (data as Partial<InfiniteData<FeedPage>>).pages;
+  if (!Array.isArray(pages)) {
+    return [];
+  }
+
+  return pages.flatMap((page) =>
+    page && Array.isArray(page.logs) ? page.logs : [],
+  );
+}
+
+function upsertCachedLog(
+  data: unknown,
+  queryKey: readonly unknown[],
+  log: TasteLog,
+): unknown {
+  if (isInfiniteFeedData(data)) {
+    const shouldInclude = shouldIncludeInFeedQuery(queryKey, log);
+    let found = false;
+    let changed = false;
+    const pages = data.pages.map((page) => {
+      let pageChanged = false;
+      const nextLogs: TasteLog[] = [];
+
+      for (const cachedLog of page.logs) {
+        if (cachedLog.id !== log.id) {
+          nextLogs.push(cachedLog);
+          continue;
+        }
+
+        found = true;
+        changed = true;
+        pageChanged = true;
+        if (shouldInclude) {
+          nextLogs.push(log);
+        }
+      }
+
+      return pageChanged ? { ...page, logs: nextLogs } : page;
+    });
+
+    if (shouldInclude && !found && pages[0]) {
+      pages[0] = { ...pages[0], logs: [log, ...pages[0].logs] };
+      changed = true;
+    }
+
+    return changed ? { ...data, pages } : data;
+  }
+
+  if (!Array.isArray(data)) {
+    return data;
+  }
+
+  const logs = data as TasteLog[];
+  const index = logs.findIndex((cachedLog) => cachedLog.id === log.id);
+  if (index >= 0) {
+    return logs.map((cachedLog) => (cachedLog.id === log.id ? log : cachedLog));
+  }
+
+  return shouldIncludeInDrilldownQuery(queryKey, log) ? [log, ...logs] : data;
+}
+
+function removeCachedLog(data: unknown, id: string): unknown {
+  if (isInfiniteFeedData(data)) {
+    let changed = false;
+    const pages = data.pages.map((page) => {
+      const logs = page.logs.filter((log) => log.id !== id);
+      if (logs.length === page.logs.length) {
+        return page;
+      }
+
+      changed = true;
+      return { ...page, logs };
+    });
+
+    return changed ? { ...data, pages } : data;
+  }
+
+  if (!Array.isArray(data)) {
+    return data;
+  }
+
+  const logs = data as TasteLog[];
+  const nextLogs = logs.filter((log) => log.id !== id);
+  return nextLogs.length === logs.length ? data : nextLogs;
+}
+
+function isInfiniteFeedData(
+  data: unknown,
+): data is InfiniteData<FeedPage, string | null> {
+  if (!data || typeof data !== "object") {
+    return false;
+  }
+
+  const pages = (data as Partial<InfiniteData<FeedPage>>).pages;
+  return (
+    Array.isArray(pages) &&
+    pages.every((page) => page && Array.isArray(page.logs))
+  );
+}
+
+function shouldIncludeInFeedQuery(
+  queryKey: readonly unknown[],
+  log: TasteLog,
+) {
+  const queryKind = queryKey[1];
+  if (queryKind !== "feed" && queryKind !== "artist") {
+    return false;
+  }
+
+  const scope = queryKey[2];
+  if (scope === "friends") {
+    return false;
+  }
+
+  const search = typeof queryKey[3] === "string" ? queryKey[3] : "";
+  return matchesFeedSearch(log, search);
+}
+
+function shouldIncludeInDrilldownQuery(
+  queryKey: readonly unknown[],
+  log: TasteLog,
+) {
+  if (queryKey[1] === "item") {
+    return queryKey[2] === log.itemId;
+  }
+
+  return (
+    queryKey[1] === "album" &&
+    typeof queryKey[2] === "string" &&
+    normalizeCacheText(queryKey[2]) === normalizeCacheText(log.albumTitle)
+  );
+}
+
+function matchesFeedSearch(log: TasteLog, search: string) {
+  const query = normalizeCacheText(search);
+  if (!query) {
+    return true;
+  }
+
+  return [
+    log.title,
+    log.body,
+    log.albumTitle,
+    ...log.genres,
+    ...log.artists,
+  ].some((value) => normalizeCacheText(value).includes(query));
+}
+
+function normalizeCacheText(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number) {

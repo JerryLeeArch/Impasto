@@ -706,6 +706,56 @@ button:disabled {
   box-shadow: var(--app-control-shadow);
 }
 
+.app-player-close {
+  top: -2.5rem;
+  right: 0;
+  background: var(--app-control-bg);
+  border: 1px solid var(--app-border);
+  color: var(--app-muted);
+  box-shadow: var(--app-control-shadow);
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.app-player-close:hover {
+  color: var(--app-text);
+  box-shadow: var(--app-control-hover-shadow);
+}
+
+.app-player-close:focus-visible {
+  outline: 3px solid var(--app-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+  .app-player-close {
+    top: 40px;
+    right: auto;
+    left: calc(100% + 0.75rem);
+    transform: translateY(-50%);
+    transition:
+      opacity 180ms ease,
+      transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+      background 180ms ease,
+      color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .app-player-close[data-visible="false"] {
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-1.35rem, -50%) scale(0.88);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-player-close {
+    transition: none;
+  }
+}
+
 .app-spotify-player-host > iframe {
   display: block;
   border-radius: 12px;

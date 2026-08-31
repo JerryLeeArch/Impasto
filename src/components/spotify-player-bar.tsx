@@ -64,6 +64,9 @@ export type NowPlayingTrack = {
 };
 
 const HINT_DISMISSED_KEY = "impasto-spotify-full-track-hint";
+const CLOSE_BUTTON_IDLE_MS = 2000;
+const CLOSE_BUTTON_AUTO_HIDE_QUERY =
+  "(min-width: 768px) and (hover: hover) and (pointer: fine)";
 
 const hintListeners = new Set<() => void>();
 
@@ -95,10 +98,12 @@ export function SpotifyPlayerBar({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<EmbedController | null>(null);
   const readyRef = useRef(false);
+  const closeButtonTimerRef = useRef<number | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
   const [retryKey, setRetryKey] = useState(0);
+  const [isCloseButtonVisible, setIsCloseButtonVisible] = useState(true);
   const showHint = !useSyncExternalStore(
     subscribeHint,
     isHintDismissed,
@@ -180,6 +185,55 @@ export function SpotifyPlayerBar({
     setRetryKey((current) => current + 1);
   }
 
+  function clearCloseButtonTimer() {
+    if (closeButtonTimerRef.current !== null) {
+      window.clearTimeout(closeButtonTimerRef.current);
+      closeButtonTimerRef.current = null;
+    }
+  }
+
+  function scheduleCloseButtonHide() {
+    clearCloseButtonTimer();
+
+    if (!window.matchMedia(CLOSE_BUTTON_AUTO_HIDE_QUERY).matches) {
+      setIsCloseButtonVisible(true);
+      return;
+    }
+
+    closeButtonTimerRef.current = window.setTimeout(() => {
+      setIsCloseButtonVisible(false);
+      closeButtonTimerRef.current = null;
+    }, CLOSE_BUTTON_IDLE_MS);
+  }
+
+  function revealCloseButton() {
+    setIsCloseButtonVisible(true);
+    scheduleCloseButtonHide();
+  }
+
+  function keepCloseButtonVisible() {
+    clearCloseButtonTimer();
+    setIsCloseButtonVisible(true);
+  }
+
+  useEffect(() => {
+    if (!window.matchMedia(CLOSE_BUTTON_AUTO_HIDE_QUERY).matches) {
+      return;
+    }
+
+    closeButtonTimerRef.current = window.setTimeout(() => {
+      setIsCloseButtonVisible(false);
+      closeButtonTimerRef.current = null;
+    }, CLOSE_BUTTON_IDLE_MS);
+
+    return () => {
+      if (closeButtonTimerRef.current !== null) {
+        window.clearTimeout(closeButtonTimerRef.current);
+        closeButtonTimerRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     return () => {
       controllerRef.current?.destroy();
@@ -189,45 +243,39 @@ export function SpotifyPlayerBar({
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-6 pb-4 sm:px-8">
-      <div className="pointer-events-auto mx-auto w-[calc(100%-40px)] max-w-[595px]">
-        <div className="app-player-bar w-[calc(100%+40px)] overflow-hidden rounded-2xl">
-          <div className="flex items-stretch">
-            <div className="relative h-[80px] min-w-0 flex-1">
-              <div
-                ref={hostRef}
-                className={
-                  status === "ready"
-                    ? "app-spotify-player-host h-full"
-                    : "app-spotify-player-host invisible h-full"
-                }
-              />
-              {status === "loading" ? (
-                <div className="app-player-bar app-metadata-muted absolute inset-0 flex items-center justify-center gap-2 border-0 text-[13px] font-medium">
-                  <Loader2 size={15} strokeWidth={1.8} className="animate-spin" />
-                  Loading player…
-                </div>
-              ) : null}
-              {status === "error" ? (
-                <div className="app-player-bar app-metadata-muted absolute inset-0 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-0 px-4 text-[13px] font-medium">
-                  <span>Spotify had an error and the player did not load.</span>
-                  <button
-                    type="button"
-                    onClick={retry}
-                    className="app-secondary-button rounded-full px-3 py-1 text-[12px] font-semibold transition"
-                  >
-                    Try again
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="app-icon-button flex w-10 shrink-0 items-center justify-center text-[#86868b] transition hover:text-[#1d1d1f]"
-              aria-label={`Close player for ${track.title}`}
-            >
-              <X size={16} strokeWidth={1.8} />
-            </button>
+      <div className="pointer-events-auto relative mx-auto w-full max-w-[595px]">
+        <div
+          className="app-player-bar overflow-hidden rounded-2xl"
+          onMouseEnter={revealCloseButton}
+          onMouseMove={revealCloseButton}
+        >
+          <div className="relative h-[80px] min-w-0">
+            <div
+              ref={hostRef}
+              className={
+                status === "ready"
+                  ? "app-spotify-player-host h-full"
+                  : "app-spotify-player-host invisible h-full"
+              }
+            />
+            {status === "loading" ? (
+              <div className="app-player-bar app-metadata-muted absolute inset-0 flex items-center justify-center gap-2 border-0 text-[13px] font-medium">
+                <Loader2 size={15} strokeWidth={1.8} className="animate-spin" />
+                Loading player…
+              </div>
+            ) : null}
+            {status === "error" ? (
+              <div className="app-player-bar app-metadata-muted absolute inset-0 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-0 px-4 text-[13px] font-medium">
+                <span>Spotify had an error and the player did not load.</span>
+                <button
+                  type="button"
+                  onClick={retry}
+                  className="app-secondary-button rounded-full px-3 py-1 text-[12px] font-semibold transition"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : null}
           </div>
           {showHint ? (
             <div className="flex items-center gap-2 border-t border-[#d2d2d7]/50 px-3 py-1.5 text-[11px] font-medium leading-4 text-[#86868b]">
@@ -253,6 +301,19 @@ export function SpotifyPlayerBar({
             </div>
           ) : null}
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          onFocus={keepCloseButtonVisible}
+          onBlur={scheduleCloseButtonHide}
+          onMouseEnter={keepCloseButtonVisible}
+          onMouseLeave={scheduleCloseButtonHide}
+          className="app-player-close app-icon-button absolute z-10 inline-flex h-8 w-8 items-center justify-center rounded-full"
+          data-visible={isCloseButtonVisible}
+          aria-label={`Close player for ${track.title}`}
+        >
+          <X size={15} strokeWidth={1.9} />
+        </button>
       </div>
     </div>
   );
