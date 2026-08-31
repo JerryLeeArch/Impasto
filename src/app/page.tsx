@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { listFeed } from "@/lib/db";
+import { FEED_PAGE_SIZE, listFeedPage, type FeedPage } from "@/lib/db";
 import { getAuthenticatedClient } from "@/lib/supabase/auth";
 import Home from "./home-client";
 
@@ -14,13 +14,18 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  let initialLogs: Awaited<ReturnType<typeof listFeed>> = [];
+  let initialFeedPage: FeedPage | undefined;
   try {
-    initialLogs = await listFeed(auth.supabase, { scope: "all", search: "" });
+    initialFeedPage = await listFeedPage(auth.supabase, {
+      scope: "all",
+      search: "",
+      limit: FEED_PAGE_SIZE,
+    });
   } catch (error) {
-    // The client refetches on mount, so a failed prefetch is not fatal.
+    // Leaving initialData undefined lets React Query fetch the first page in
+    // the browser, so a transient server-side prefetch failure is not fatal.
     console.error(error);
   }
 
-  return <Home initialLogs={initialLogs} />;
+  return <Home initialFeedPage={initialFeedPage} />;
 }

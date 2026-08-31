@@ -48,6 +48,15 @@ export type FeedLog = TasteLog & {
   ownerDisplayName: string | null;
 };
 
+export type FeedPage = {
+  logs: FeedLog[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export const FEED_PAGE_SIZE = 20;
+const MAX_FEED_PAGE_SIZE = 50;
+
 export type MusicItemSummary = {
   id: string;
   title: string;
@@ -296,6 +305,54 @@ export async function listFeed(
   });
 }
 
+export async function listFeedPage(
+  supabase: SupabaseClient,
+  {
+    scope = "all",
+    search = "",
+    cursor = null,
+    limit = FEED_PAGE_SIZE,
+  }: {
+    scope?: FeedScope;
+    search?: string;
+    cursor?: string | null;
+    limit?: number;
+  } = {},
+): Promise<FeedPage> {
+  const decodedCursor = decodeFeedCursor(cursor);
+  const pageLimit = normalizeFeedPageSize(limit);
+  const page = await callRpc<DatabaseFeedPage>(
+    supabase,
+    "impasto_list_feed_page",
+    {
+      p_scope: scope,
+      p_search: normalizeLooseText(search),
+      p_cursor_created_at: decodedCursor?.createdAt ?? null,
+      p_cursor_id: decodedCursor?.id ?? null,
+      p_limit: pageLimit,
+    },
+  );
+
+  const logs = Array.isArray(page?.logs) ? page.logs : [];
+  if (page?.hasMore !== true) {
+    return { logs, nextCursor: null, hasMore: false };
+  }
+
+  const nextCursor = encodeFeedCursor(page.nextCursor);
+  return { logs, nextCursor, hasMore: true };
+}
+
+export function parseFeedPageSize(value: string | null) {
+  if (!value) {
+    return FEED_PAGE_SIZE;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed)
+    ? normalizeFeedPageSize(parsed)
+    : FEED_PAGE_SIZE;
+}
+
 export async function listFriends(supabase: SupabaseClient) {
   return callRpc<FriendList>(supabase, "impasto_list_friends", {});
 }
@@ -383,6 +440,81 @@ async function callRpc<T>(
   }
 
   return data as T;
+}
+
+type FeedCursor = {
+  createdAt: string;
+  id: string;
+};
+
+type DatabaseFeedPage = {
+  logs?: FeedLog[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+
+function normalizeFeedPageSize(value: number) {
+  if (!Number.isFinite(value)) {
+    return FEED_PAGE_SIZE;
+  }
+
+  return Math.max(1, Math.min(Math.trunc(value), MAX_FEED_PAGE_SIZE));
+}
+
+function decodeFeedCursor(value: string | null): FeedCursor | null {
+  if (!value) {
+    return null;
+  }
+
+  if (value.length > 512 || !/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new InputError("Invalid feed cursor.");
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as unknown;
+
+    if (!isFeedCursor(payload)) {
+      throw new InputError("Invalid feed cursor.");
+    }
+
+    return payload;
+  } catch (error) {
+    if (error instanceof InputError) {
+      throw error;
+    }
+
+    throw new InputError("Invalid feed cursor.");
+  }
+}
+
+function encodeFeedCursor(value: unknown) {
+  if (!isFeedCursor(value)) {
+    throw new DatabaseError("The feed returned an invalid pagination cursor.");
+  }
+
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function isFeedCursor(value: unknown): value is FeedCursor {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const cursor = value as Record<string, unknown>;
+  return (
+    typeof cursor.createdAt === "string" &&
+    cursor.createdAt.length <= 64 &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(
+      cursor.createdAt,
+    ) &&
+    Number.isFinite(Date.parse(cursor.createdAt)) &&
+    typeof cursor.id === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      cursor.id,
+    )
+  );
 }
 
 function toDatabaseInput(input: LogInput) {
